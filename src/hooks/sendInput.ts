@@ -4,6 +4,9 @@ import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 
 export async function waitForInput(convex: ConvexReactClient, inputId: Id<'inputs'>) {
+  if (!inputId) {
+    throw new Error('Cannot wait for input: inputId is null/undefined');
+  }
   const watch = convex.watchQuery(api.aiTown.main.inputStatus, { inputId });
   let result = watch.localQueryResult();
   // The result's undefined if the query's loading and null if the input hasn't
@@ -45,7 +48,13 @@ export function useSendInput<Name extends keyof Inputs>(
 ): (args: InputArgs<Name>) => Promise<InputReturnValue<Name>> {
   const convex = useConvex();
   return async (args) => {
+    if (!engineId) {
+      throw new Error('Cannot send input without a valid engineId');
+    }
     const inputId = await convex.mutation(api.world.sendWorldInput, { engineId, name, args });
+    if (!inputId) {
+      throw new Error('Failed to enqueue input on engine');
+    }
     return await waitForInput(convex, inputId);
   };
 }

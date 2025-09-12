@@ -9,6 +9,9 @@ import { useSendInput } from '../hooks/sendInput';
 import { Player } from '../../convex/aiTown/player';
 import { GameId } from '../../convex/aiTown/ids';
 import { ServerGame } from '../hooks/serverGame';
+import { ChallengeModal } from './ChallengeModal';
+import { useState } from 'react';
+import { characters } from '../../data/characters';
 
 export default function PlayerDetails({
   worldId,
@@ -25,20 +28,26 @@ export default function PlayerDetails({
   setSelectedElement: SelectElement;
   scrollViewRef: React.RefObject<HTMLDivElement>;
 }) {
-  const humanTokenIdentifier = useQuery(api.world.userStatus, { worldId });
-
-  const players = [...game.world.players.values()];
-  const humanPlayer = players.find((p) => p.human === humanTokenIdentifier);
+  const humanPlayerDoc = useQuery(api.players.user, { worldId });
+  const humanPlayer = humanPlayerDoc
+    ? game.world.players.get(humanPlayerDoc.id as GameId<'players'>)
+    : undefined;
   const humanConversation = humanPlayer ? game.world.playerConversation(humanPlayer) : undefined;
   // Always select the other player if we're in a conversation with them.
   if (humanPlayer && humanConversation) {
     const otherPlayerIds = [...humanConversation.participants.keys()].filter(
       (p) => p !== humanPlayer.id,
     );
-    playerId = otherPlayerIds[0];
+    playerId = otherPlayerIds[0] as GameId<'players'>;
   }
 
+  const [challengeModalOpen, setChallengeModalOpen] = useState(false);
+  const [challengeBukeleModalOpen, setChallengeBukeleModalOpen] = useState(false);
   const player = playerId && game.world.players.get(playerId);
+  const portfolio = useQuery(
+    api.economy.getPortfolio,
+    playerId ? { playerId } : 'skip',
+  );
   const playerConversation = player && game.world.playerConversation(player);
 
   const previousConversation = useQuery(
@@ -127,25 +136,40 @@ export default function PlayerDetails({
       }),
     );
   };
-  // const pendingSuffix = (inputName: string) =>
-  //   [...inflightInputs.values()].find((i) => i.name === inputName) ? ' opacity-50' : '';
 
   const pendingSuffix = (s: string) => '';
+  const isBukele = playerDescription?.name === 'President Bukele';
+  const playerCharacter = characters.find(c => c.name === humanPlayer?.characterName);
+  const bukeleCharacter = characters.find(c => c.name === playerDescription?.character);
+
   return (
     <>
-      <div className="flex gap-4">
-        <div className="box w-3/4 sm:w-full mr-auto">
-          <h2 className="bg-brown-700 p-2 font-display text-2xl sm:text-4xl tracking-wider shadow-solid text-center">
+      {isBukele && (
+        <ChallengeModal
+          isOpen={challengeModalOpen}
+          onClose={() => setChallengeModalOpen(false)}
+          playerSprite={playerCharacter?.textureUrl ?? ''}
+          presidentSprite={bukeleCharacter?.textureUrl ?? ''}
+        />
+      )}
+      <div className="flex gap-4 items-center">
+        <div className="box flex-grow">
+          <h2 className="bg-brown-700 p-2 font-display text-xl sm:text-2xl tracking-wider shadow-solid text-center">
             {playerDescription?.name}
           </h2>
+          <div className="bg-brown-600 p-2 text-center">
+            <p className="text-lg font-bold text-yellow-300">
+              {(portfolio?.btcBalance ?? 0).toFixed(4)} BTC
+            </p>
+          </div>
         </div>
         <a
-          className="button text-white shadow-solid text-2xl cursor-pointer pointer-events-auto"
+          className="button flex-shrink-0 text-white shadow-solid cursor-pointer pointer-events-auto flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12"
           onClick={() => setSelectedElement(undefined)}
         >
-          <h2 className="h-full bg-clay-700">
+          <div className="h-full w-full bg-clay-700 flex items-center justify-center">
             <img className="w-4 h-4 sm:w-5 sm:h-5" src={closeImg} />
-          </h2>
+          </div>
         </a>
       </div>
       {canInvite && (
@@ -220,6 +244,16 @@ export default function PlayerDetails({
             {player.activity.description}
           </h2>
         </div>
+      )}
+      {isBukele && (
+        <a
+          className={'mt-6 button text-white shadow-solid text-xl cursor-pointer pointer-events-auto'}
+          onClick={() => setChallengeModalOpen(true)}
+        >
+          <div className="h-full bg-clay-700 text-center">
+            <span>Challenge for BTC</span>
+          </div>
+        </a>
       )}
       <div className="desc my-6">
         <p className="leading-tight -m-4 bg-brown-700 text-base sm:text-sm">

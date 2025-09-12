@@ -36,12 +36,16 @@ import type * as aiTown_world from "../aiTown/world.js";
 import type * as aiTown_worldMap from "../aiTown/worldMap.js";
 import type * as constants from "../constants.js";
 import type * as crons from "../crons.js";
+import type * as economy from "../economy.js";
 import type * as engine_abstractGame from "../engine/abstractGame.js";
 import type * as engine_historicalObject from "../engine/historicalObject.js";
 import type * as http from "../http.js";
 import type * as init from "../init.js";
 import type * as messages from "../messages.js";
+import type * as migrations from "../migrations.js";
 import type * as music from "../music.js";
+import type * as news from "../news.js";
+import type * as players from "../players.js";
 import type * as testing from "../testing.js";
 import type * as util_FastIntegerCompression from "../util/FastIntegerCompression.js";
 import type * as util_assertNever from "../util/assertNever.js";
@@ -55,6 +59,8 @@ import type * as util_object from "../util/object.js";
 import type * as util_sleep from "../util/sleep.js";
 import type * as util_types from "../util/types.js";
 import type * as util_xxhash from "../util/xxhash.js";
+import type * as village from "../village.js";
+import type * as waitingPool from "../waitingPool.js";
 import type * as world from "../world.js";
 
 /**
@@ -89,12 +95,16 @@ declare const fullApi: ApiFromModules<{
   "aiTown/worldMap": typeof aiTown_worldMap;
   constants: typeof constants;
   crons: typeof crons;
+  economy: typeof economy;
   "engine/abstractGame": typeof engine_abstractGame;
   "engine/historicalObject": typeof engine_historicalObject;
   http: typeof http;
   init: typeof init;
   messages: typeof messages;
+  migrations: typeof migrations;
   music: typeof music;
+  news: typeof news;
+  players: typeof players;
   testing: typeof testing;
   "util/FastIntegerCompression": typeof util_FastIntegerCompression;
   "util/assertNever": typeof util_assertNever;
@@ -108,6 +118,8 @@ declare const fullApi: ApiFromModules<{
   "util/sleep": typeof util_sleep;
   "util/types": typeof util_types;
   "util/xxhash": typeof util_xxhash;
+  village: typeof village;
+  waitingPool: typeof waitingPool;
   world: typeof world;
 }>;
 export declare const api: FilterApi<

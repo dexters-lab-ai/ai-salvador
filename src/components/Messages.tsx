@@ -5,7 +5,7 @@ import { api } from '../../convex/_generated/api';
 import { MessageInput } from './MessageInput';
 import { Player } from '../../convex/aiTown/player';
 import { Conversation } from '../../convex/aiTown/conversation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 export function Messages({
   worldId,
@@ -40,6 +40,20 @@ export function Messages({
     currentlyTyping &&
     descriptions?.playerDescriptions.find((p) => p.playerId === currentlyTyping?.playerId)?.name;
 
+  // Find the other participant (agent) to fetch their latest news memory
+  let otherPlayerId: string | undefined = undefined;
+  if (conversation.kind === 'active') {
+    const ids = [...conversation.doc.participants.keys()];
+    otherPlayerId = ids.find((id) => id !== humanPlayerId);
+  } else {
+    const ids = conversation.doc.participants;
+    otherPlayerId = humanPlayerId ? ids.find((id) => id !== humanPlayerId) : ids[0];
+  }
+  const latestNews = useQuery(
+    api.agent.memory.getLatestNewsMemoryPublic,
+    otherPlayerId ? { playerId: otherPlayerId as any } : 'skip',
+  );
+
   const scrollView = scrollViewRef.current;
   const isScrolledToBottom = useRef(false);
   useEffect(() => {
@@ -62,12 +76,43 @@ export function Messages({
     }
   }, [messages, currentlyTyping]);
 
+  // TTS: speak agent messages (not human) as they arrive
+  const spoken = useRef<Set<string>>(new Set());
+  const agentMessages = useMemo(() =>
+    (messages ?? []).filter((m) => m.author !== humanPlayerId),
+  [messages, humanPlayerId]);
+
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const voices = synth.getVoices();
+    const pickVoice = (name?: string) => {
+      const female = ['Alice','Stella','Kira'];
+      const male = ['ICE','MS-13','President Bukele','Alex','Lucky','Bob','Kurt','Pete'];
+      const preferFemale = name ? female.some((n) => name.includes(n)) : false;
+      const preferMale = name ? male.some((n) => name.includes(n)) : false;
+      // Try to pick a gendered voice name if available
+      const byName = (needle: string) => voices.find((v) => v.name.toLowerCase().includes(needle));
+      if (preferFemale) return byName('female') || byName('google uk english female') || voices[0];
+      if (preferMale) return byName('male') || byName('google uk english male') || voices[0];
+      return voices[0];
+    };
+    for (const m of agentMessages) {
+      const key = String(m._id);
+      if (spoken.current.has(key)) continue;
+      spoken.current.add(key);
+      const utter = new SpeechSynthesisUtterance(m.text);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      utter.voice = pickVoice(m.authorName);
+      try { synth.speak(utter); } catch {}
+    }
+  }, [agentMessages]);
   if (messages === undefined) {
-    return null;
+    // Render minimal container to keep hook order stable
+    return <div className="p-2 text-sm opacity-70">Loading messages…</div>;
   }
-  if (messages.length === 0 && !inConversationWithMe) {
-    return null;
-  }
+  // Always render the container so we can show typing or structural UI even before the first message
   const messageNodes: { time: number; node: React.ReactNode }[] = messages.map((m) => {
     const node = (
       <div key={`text-${m._id}`} className="leading-tight mb-6">
@@ -137,6 +182,28 @@ export function Messages({
   return (
     <div className="chats text-base sm:text-sm">
       <div className="bg-brown-200 text-black p-2">
+        {latestNews && (
+          <div className="mb-4">
+            <div className="relative mx-auto max-w-xl bg-white text-black p-3 shadow-solid border-4 border-brown-700">
+              <div className="text-center font-display text-xl">Daily Gazette</div>
+              <div className="mt-1 text-xs text-gray-600">
+                {new Date(latestNews._creationTime).toLocaleString()}
+              </div>
+              {(() => {
+                const text = latestNews?.description ?? '';
+                // Try to extract an image URL from the description if present
+                const match = text.match(/https?:[^\s)]+\.(png|jpe?g|webp|gif)(\?[^\s)]*)?/i);
+                const url = match?.[0];
+                return url ? (
+                  <img src={url} alt="News article image" className="w-full h-auto my-2" />
+                ) : null;
+              })()}
+              <div className="mt-2 italic">
+                {latestNews.description}
+              </div>
+            </div>
+          </div>
+        )}
         {nodes.length > 0 && nodes.map((n) => n.node)}
         {currentlyTyping && currentlyTyping.playerId !== humanPlayerId && (
           <div key="typing" className="leading-tight mb-6">

@@ -98,6 +98,9 @@ export const runStep = internalAction({
         worldId: args.worldId,
         generationNumber: args.generationNumber,
       });
+      if (!engine.running) {
+        return;
+      }
       const game = new Game(engine, args.worldId, gameState);
 
       let now = Date.now();

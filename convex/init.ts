@@ -84,6 +84,18 @@ async function getOrCreateDefaultWorld(ctx: MutationCtx) {
     generationNumber: engine.generationNumber,
     maxDuration: ENGINE_ACTION_DURATION,
   });
+
+  const existingVillageState = await ctx.db.query('villageState').unique();
+  if (!existingVillageState) {
+    await ctx.db.insert('villageState', {
+      treasury: 0,
+      btcPrice: 110000,
+      previousBtcPrice: 108000,
+      marketSentiment: 'neutral',
+      touristCount: 0,
+    });
+  }
+
   return { worldStatus, engine };
 }
 

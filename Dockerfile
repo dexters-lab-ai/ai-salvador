@@ -1,48 +1,39 @@
-# Use an Ubuntu base image
-FROM ubuntu:22.04
+# Stage 1: Build the React application
+FROM node:18-alpine AS build
 
-# Install dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    curl \
-    python3 \
-    python3-pip \
-    unzip \
-    socat \
-    build-essential \
-    libssl-dev \
-    iproute2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install NVM, Node.js, and npm
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash && \
-    export NVM_DIR="$HOME/.nvm" && \
-    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && \
-    nvm install 18 && \
-    nvm use 18
-
-# Add NVM to PATH
-ENV NVM_DIR /root/.nvm
-ENV NODE_VERSION 18.0.0
-RUN . $NVM_DIR/nvm.sh && nvm install $NODE_VERSION
-ENV NODE_PATH $NVM_DIR/versions/node/v$NODE_VERSION/lib/node_modules
-ENV PATH $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-
-# Set the working directory
 WORKDIR /usr/src/app
+
+# Build-time env for Vite (set via --build-arg), with safe defaults
+ARG VITE_ADMIN=0
+ARG VITE_CONVEX_URL
+ARG VITE_CLERK_PUBLISHABLE_KEY
+ENV VITE_ADMIN=$VITE_ADMIN \
+    VITE_CONVEX_URL=$VITE_CONVEX_URL \
+    VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
 
 # Copy dependency files
 COPY package*.json ./
 
-# Install npm dependencies
+# Install dependencies
 RUN npm install
 
-RUN npx update-browserslist-db@latest
-
-# Copy application files
+# Copy the rest of the application files
 COPY . .
 
-# Expose necessary ports
-EXPOSE 5173
+# Build the application for production
+RUN npm run build
 
-CMD ["npx", "vite", "--host"]
+# Stage 2: Serve the application with Nginx
+FROM nginx:stable-alpine
+
+# Copy the built files from the build stage
+COPY --from=build /usr/src/app/dist /usr/share/nginx/html
+
+# Copy the Nginx configuration file
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]

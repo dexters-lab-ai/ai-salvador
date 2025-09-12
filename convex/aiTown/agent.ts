@@ -20,8 +20,14 @@ import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
 import { distance } from '../util/geometry';
 import { internal } from '../_generated/api';
-import { movePlayer } from './movement';
+import { movePlayer, blocked } from './movement';
 import { insertInput } from './insertInput';
+import { inputHandler } from './inputHandler';
+import { point } from '../util/types';
+import { Descriptions } from '../../data/characters';
+import { Player, activity } from './player';
+import { Conversation, conversationInputs } from './conversation';
+import { AgentDescription } from './agentDescription';
 
 export class Agent {
   id: GameId<'agents'>;
@@ -29,6 +35,8 @@ export class Agent {
   toRemember?: GameId<'conversations'>;
   lastConversation?: number;
   lastInviteAttempt?: number;
+  // Cooldown to avoid spamming pathfinding during walkingOver.
+  lastWalkingOverMoveAttempt?: number;
   inProgressOperation?: {
     name: string;
     operationId: string;
@@ -53,6 +61,32 @@ export class Agent {
     const player = game.world.players.get(this.playerId);
     if (!player) {
       throw new Error(`Invalid player ID ${this.playerId}`);
+    }
+    // If we have a pending human invitation, preempt any in-progress operation to accept it.
+    const pendingConversation = game.world.playerConversation(player);
+    const pendingMember = pendingConversation?.participants.get(player.id);
+    if (
+      pendingConversation &&
+      pendingMember?.status.kind === 'invited'
+    ) {
+      const [otherId] = [...pendingConversation.participants.keys()].filter((id) => id !== player.id);
+      const inviter = otherId && game.world.players.get(otherId);
+      if (inviter && inviter.human) {
+        // End any current activity/pathfinding and preempt the current operation to accept humans immediately
+        if (player.activity) {
+          player.activity.until = now; // cancel activity
+        }
+        if (player.pathfinding) {
+          delete player.pathfinding;
+        }
+        if (this.inProgressOperation) {
+          delete this.inProgressOperation;
+          console.log(`Agent ${player.id} preempting op to accept human invite from ${inviter.id}`);
+        } else {
+          console.log(`Agent ${player.id} accepting human invite from ${inviter.id}`);
+        }
+        pendingConversation.acceptInvite(game, player);
+      }
     }
     if (this.inProgressOperation) {
       if (now < this.inProgressOperation.started + ACTION_TIMEOUT) {
@@ -138,7 +172,10 @@ export class Agent {
           return;
         }
 
-        // Keep moving towards the other player.
+        // Keep moving towards the other player, but rate-limit attempts to avoid pathfinding spam.
+        if (this.lastWalkingOverMoveAttempt && now < this.lastWalkingOverMoveAttempt + 500) {
+          return;
+        }
         // If we're close enough to the player, just walk to them directly.
         if (!player.pathfinding) {
           let destination;
@@ -153,8 +190,26 @@ export class Agent {
               y: Math.floor((player.position.y + otherPlayer.position.y) / 2),
             };
           }
-          console.log(`Agent ${player.id} walking towards ${otherPlayer.id}...`, destination);
-          movePlayer(game, now, player, destination);
+          // If destination is blocked, try nearby offsets and pick the first walkable spot.
+          const candidates = [
+            destination,
+            { x: destination.x + 1, y: destination.y },
+            { x: destination.x - 1, y: destination.y },
+            { x: destination.x, y: destination.y + 1 },
+            { x: destination.x, y: destination.y - 1 },
+            { x: destination.x + 1, y: destination.y + 1 },
+            { x: destination.x - 1, y: destination.y - 1 },
+            { x: destination.x + 1, y: destination.y - 1 },
+            { x: destination.x - 1, y: destination.y + 1 },
+          ];
+          let chosen = candidates.find((c) => !blocked(game, now, c));
+          if (!chosen) {
+            // As a last resort, skip issuing a move this tick to avoid spamming failed routes.
+            return;
+          }
+          this.lastWalkingOverMoveAttempt = now;
+          console.log(`Agent ${player.id} walking towards ${otherPlayer.id}...`, chosen);
+          movePlayer(game, now, player, chosen);
         }
         return;
       }
@@ -190,7 +245,10 @@ export class Agent {
         }
         // See if the conversation has been going on too long and decide to leave.
         const tooLongDeadline = started + MAX_CONVERSATION_DURATION;
-        if (tooLongDeadline < now || conversation.numMessages > MAX_CONVERSATION_MESSAGES) {
+        // Allow longer chats when a human is involved (16 messages), otherwise use default cap.
+        const humanInvolved = player.human || otherPlayer.human;
+        const maxMessages = humanInvolved ? 16 : MAX_CONVERSATION_MESSAGES;
+        if (tooLongDeadline < now || conversation.numMessages > maxMessages) {
           console.log(`${player.id} leaving conversation with ${otherPlayer.id}.`);
           const messageUuid = crypto.randomUUID();
           conversation.setIsTyping(now, player, messageUuid);
@@ -230,16 +288,54 @@ export class Agent {
           messageUuid,
           type: 'continue',
         });
+        // Occasionally try to hustle the tourist (creates a pending request the tourist can accept/reject).
+        if (otherPlayer.human && Math.random() < 0.25) {
+          game.pendingOperations.push({
+            name: 'hustle',
+            args: { agentId: player.id, touristId: otherPlayer.id },
+          });
+        }
+        // Passive earning from conversation.
+        if (otherPlayer.human) {
+          game.pendingOperations.push({
+            name: 'earnFromConversation',
+            args: { agentId: player.id, touristId: otherPlayer.id },
+          });
+        }
+        // ICE hands over all collected BTC to President Bukele when they meet (once per conversation).
+        {
+          const pdSelf = game.playerDescriptions.get(player.id);
+          const pdOther = game.playerDescriptions.get(otherPlayer.id);
+          const oncePerConversation = conversation.numMessages < 2;
+          if (pdSelf?.name === 'ICE' && pdOther?.name === 'President Bukele' && oncePerConversation) {
+            game.pendingOperations.push({
+              name: 'transferAllBalance',
+              args: { fromId: player.id, toId: otherPlayer.id },
+            });
+          }
+        }
+        // Robber protection fee against MCP agents (non-human) when MS-13 is the agent.
+        // Guard: only once per conversation (trigger early when few messages have occurred).
+        if (!otherPlayer.human) {
+          const pd = game.playerDescriptions.get(player.id);
+          const oncePerConversation = conversation.numMessages < 2; // trigger only at start
+          if (pd?.name === 'MS-13' && oncePerConversation) {
+            game.pendingOperations.push({
+              name: 'robProtectionFee',
+              args: { robberId: player.id, victimId: otherPlayer.id },
+            });
+          }
+        }
         return;
       }
     }
   }
 
-  startOperation<Name extends keyof AgentOperations>(
+  startOperation(
     game: Game,
     now: number,
-    name: Name,
-    args: Omit<FunctionArgs<AgentOperations[Name]>, 'operationId'>,
+    name: keyof AgentOperations,
+    args: Omit<FunctionArgs<any>, 'operationId'>,
   ) {
     if (this.inProgressOperation) {
       throw new Error(
@@ -286,6 +382,161 @@ export type SerializedAgent = ObjectType<typeof serializedAgent>;
 
 type AgentOperations = typeof internal.aiTown.agentOperations;
 
+export const agentInputs = {
+  finishRememberConversation: inputHandler({
+    args: {
+      operationId: v.string(),
+      agentId,
+    },
+    handler: (game, now, args) => {
+      const agentId = parseGameId('agents', args.agentId);
+      const agent = game.world.agents.get(agentId);
+      if (!agent) {
+        throw new Error(`Couldn't find agent: ${agentId}`);
+      }
+      if (
+        !agent.inProgressOperation ||
+        agent.inProgressOperation.operationId !== args.operationId
+      ) {
+        console.debug(`Agent ${agentId} isn't remembering ${args.operationId}`);
+      } else {
+        delete agent.inProgressOperation;
+        delete agent.toRemember;
+      }
+      return null;
+    },
+  }),
+  finishDoSomething: inputHandler({
+    args: {
+      operationId: v.string(),
+      agentId: v.id('agents'),
+      destination: v.optional(point),
+      invitee: v.optional(v.id('players')),
+      activity: v.optional(activity),
+      operation: v.optional(v.object({ name: v.string(), args: v.any() })),
+    },
+    handler: (game, now, args) => {
+      const agentId = parseGameId('agents', args.agentId);
+      const agent = game.world.agents.get(agentId);
+      if (!agent) {
+        throw new Error(`Couldn't find agent: ${agentId}`);
+      }
+      if (
+        !agent.inProgressOperation ||
+        agent.inProgressOperation.operationId !== args.operationId
+      ) {
+        console.debug(`Agent ${agentId} didn't have ${args.operationId} in progress`);
+        return null;
+      }
+      delete agent.inProgressOperation;
+      const player = game.world.players.get(agent.playerId)!;
+      if (args.invitee) {
+        const inviteeId = parseGameId('players', args.invitee);
+        const invitee = game.world.players.get(inviteeId);
+        if (!invitee) {
+          throw new Error(`Couldn't find player: ${inviteeId}`);
+        }
+        Conversation.start(game, now, player, invitee);
+        agent.lastInviteAttempt = now;
+      }
+      if (args.destination) {
+        movePlayer(game, now, player, args.destination);
+      }
+      if (args.activity) {
+        player.activity = args.activity;
+      }
+      if (args.operation) {
+        agent.startOperation(game, now, args.operation.name as keyof AgentOperations, args.operation.args);
+      }
+      return null;
+    },
+  }),
+  agentFinishSendingMessage: inputHandler({
+    args: {
+      agentId,
+      conversationId,
+      timestamp: v.number(),
+      operationId: v.string(),
+      leaveConversation: v.boolean(),
+    },
+    handler: (game, now, args) => {
+      const agentId = parseGameId('agents', args.agentId);
+      const agent = game.world.agents.get(agentId);
+      if (!agent) {
+        throw new Error(`Couldn't find agent: ${agentId}`);
+      }
+      const player = game.world.players.get(agent.playerId);
+      if (!player) {
+        throw new Error(`Couldn't find player: ${agent.playerId}`);
+      }
+      const conversationId = parseGameId('conversations', args.conversationId);
+      const conversation = game.world.conversations.get(conversationId);
+      if (!conversation) {
+        throw new Error(`Couldn't find conversation: ${conversationId}`);
+      }
+      if (
+        !agent.inProgressOperation ||
+        agent.inProgressOperation.operationId !== args.operationId
+      ) {
+        console.debug(`Agent ${agentId} wasn't sending a message ${args.operationId}`);
+        return null;
+      }
+      delete agent.inProgressOperation;
+      conversationInputs.finishSendingMessage.handler(game, now, {
+        playerId: agent.playerId,
+        conversationId: args.conversationId,
+        timestamp: args.timestamp,
+      });
+      if (args.leaveConversation) {
+        conversation.leave(game, now, player);
+      }
+      return null;
+    },
+  }),
+  createAgent: inputHandler({
+    args: {
+      descriptionIndex: v.number(),
+    },
+    handler: (game, now, args) => {
+      const description = Descriptions[args.descriptionIndex];
+      const playerId = Player.join(
+        game,
+        now,
+        description.name,
+        description.character,
+        description.character,
+        description.identity,
+      );
+      const agentId = game.allocId('agents');
+      game.world.agents.set(
+        agentId,
+        new Agent({
+          id: agentId,
+          playerId: playerId,
+          inProgressOperation: undefined,
+          lastConversation: undefined,
+          lastInviteAttempt: undefined,
+          toRemember: undefined,
+        }),
+      );
+      game.agentDescriptions.set(
+        agentId,
+        new AgentDescription({
+          agentId: agentId,
+          identity: description.identity,
+          plan: description.plan,
+          btcGoal: Math.random() * (1 - 0.1) + 0.1,
+        }),
+      );
+      game.pendingOperations.push({
+        name: 'createAgentPortfolio',
+        args: { playerId },
+      });
+      return { agentId };
+    },
+  }),
+};
+
 export async function runAgentOperation(ctx: MutationCtx, operation: string, args: any) {
   let reference;
   switch (operation) {
@@ -297,6 +548,21 @@ export async function runAgentOperation(ctx: MutationCtx, operation: string, arg
       break;
     case 'agentDoSomething':
       reference = internal.aiTown.agentOperations.agentDoSomething;
+      break;
+    case 'agentReadNews':
+      reference = internal.aiTown.agentOperations.agentReadNews;
+      break;
+    case 'hustle':
+      reference = internal.economy.hustle;
+      break;
+    case 'createAgentPortfolio':
+      reference = internal.aiTown.agentInputs.createAgentPortfolio;
+      break;
+    case 'earnFromConversation':
+      reference = internal.economy.earnFromConversation;
+      break;
+    case 'robProtectionFee':
+      reference = internal.economy.robProtectionFee;
       break;
     default:
       throw new Error(`Unknown operation: ${operation}`);

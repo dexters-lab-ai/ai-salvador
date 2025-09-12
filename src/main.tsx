@@ -1,3 +1,8 @@
+import { settings, ENV } from 'pixi.js';
+
+// This setting is needed to support the custom blend modes used in the lighting shader.
+settings.PREFER_ENV = ENV.WEBGL2;
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Home from './App.tsx';
@@ -5,11 +10,19 @@ import './index.css';
 import 'uplot/dist/uPlot.min.css';
 import 'react-toastify/dist/ReactToastify.css';
 import ConvexClientProvider from './components/ConvexClientProvider.tsx';
+import { ClerkProvider } from '@clerk/clerk-react';
+
+const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+if (!publishableKey) {
+  throw new Error('Missing Clerk publishable key. Make sure to set VITE_CLERK_PUBLISHABLE_KEY in your .env file.');
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConvexClientProvider>
-      <Home />
-    </ConvexClientProvider>
+    <ClerkProvider publishableKey={publishableKey}>
+      <ConvexClientProvider>
+        <Home />
+      </ConvexClientProvider>
+    </ClerkProvider>
   </React.StrictMode>,
 );

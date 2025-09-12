@@ -94,11 +94,12 @@ export function findRoute(game: Game, now: number, player: Player, destination: 
         continue;
       }
       const remaining = manhattanDistance(position, destination);
+      const effectiveSpeed = movementSpeed * (player.speedMultiplier ?? 1);
       const path = {
         position,
         facing,
         // Movement speed is in tiles per second.
-        t: current.t + (segmentLength / movementSpeed) * 1000,
+        t: current.t + (segmentLength / effectiveSpeed) * 1000,
         length,
         cost: length + remaining,
         prev: current,
@@ -171,6 +172,25 @@ export function blocked(game: Game, now: number, pos: Point, playerId?: GameId<'
 export function blockedWithPositions(position: Point, otherPositions: Point[], map: WorldMap) {
   if (isNaN(position.x) || isNaN(position.y)) {
     throw new Error(`NaN position in ${JSON.stringify(position)}`);
+  }
+  // Walkability overrides to reduce dead-ends near common meetups.
+  const walkableOverrides: Point[] = [
+    { x: 33, y: 30 },
+    { x: 33, y: 31 },
+    { x: 33, y: 29 },
+    { x: 32, y: 30 },
+    { x: 34, y: 30 },
+  ];
+  for (const w of walkableOverrides) {
+    if (Math.floor(position.x) === w.x && Math.floor(position.y) === w.y) {
+      // Still avoid colliding with players, but ignore world tiles here.
+      for (const otherPosition of otherPositions) {
+        if (distance(otherPosition, position) < COLLISION_THRESHOLD) {
+          return 'player';
+        }
+      }
+      return null;
+    }
   }
   if (position.x < 0 || position.y < 0 || position.x >= map.width || position.y >= map.height) {
     return 'out of bounds';

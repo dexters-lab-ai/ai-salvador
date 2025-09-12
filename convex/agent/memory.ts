@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { ActionCtx, DatabaseReader, internalMutation, internalQuery } from '../_generated/server';
+import { ActionCtx, DatabaseReader, internalAction, internalMutation, internalQuery, query } from '../_generated/server';
 import { Doc, Id } from '../_generated/dataModel';
 import { internal } from '../_generated/api';
 import { LLMMessage, chatCompletion, fetchEmbedding } from '../util/llm';
@@ -20,6 +20,45 @@ export type MemoryType = Memory['data']['type'];
 export type MemoryOfType<T extends MemoryType> = Omit<Memory, 'data'> & {
   data: Extract<Memory['data'], { type: T }>;
 };
+
+export async function rememberMarketSentiment(
+  ctx: ActionCtx,
+  agentId: GameId<'agents'>,
+  playerId: GameId<'players'>,
+  sentiment: 'positive' | 'negative' | 'neutral',
+) {
+  const description = `The town is feeling ${sentiment} about the BTC price.`;
+  const importance = 8; // High importance to make it a likely topic of conversation.
+  const { embedding } = await fetchEmbedding(description);
+  await ctx.runMutation(selfInternal.insertMemory, {
+    agentId,
+    playerId,
+    description,
+    importance,
+    lastAccess: Date.now(),
+    data: {
+      type: 'marketSentiment',
+      sentiment,
+    },
+    embedding,
+  });
+}
+
+// Public query: latest news observation for a player (from agentReadNews)
+export const getLatestNewsMemoryPublic = query({
+  args: { playerId },
+  handler: async (ctx, args) => {
+    // Get recent observation memories and pick the first that matches the news pattern
+    const recent = await ctx.db
+      .query('memories')
+      .withIndex('playerId_type', (q) => q.eq('playerId', args.playerId).eq('data.type', 'observation'))
+      .order('desc')
+      .take(20);
+    const news = recent.find((m) => m.description.startsWith('I read an article from '));
+    if (!news) return null;
+    return { _id: news._id, description: news.description, _creationTime: news._creationTime };
+  },
+});
 
 export async function rememberConversation(
   ctx: ActionCtx,
@@ -435,6 +474,15 @@ export const getReflectionMemories = internalQuery({
   },
 });
 
+export const getLatestSentimentMemory = internalQuery({
+  args: {
+    playerId: playerId,
+  },
+  handler: async (ctx, args) => {
+    return await latestMemoryOfType(ctx.db, args.playerId as GameId<'players'>, 'marketSentiment');
+  },
+});
+
 export async function latestMemoryOfType<T extends MemoryType>(
   db: DatabaseReader,
   playerId: GameId<'players'>,
@@ -448,3 +496,24 @@ export async function latestMemoryOfType<T extends MemoryType>(
   if (!entry) return null;
   return entry as MemoryOfType<T>;
 }
+
+export const agentRemember = internalAction({
+  args: {
+    agentId: v.string(),
+    playerId: v.string(),
+    memory: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const importance = await calculateImportance(args.memory);
+    const { embedding } = await fetchEmbedding(args.memory);
+    await ctx.runMutation(internal.agent.memory.insertMemory, {
+      agentId: args.agentId as GameId<'agents'>,
+      playerId: args.playerId as GameId<'players'>,
+      description: args.memory,
+      importance,
+      lastAccess: Date.now(),
+      data: { type: 'observation' },
+      embedding,
+    });
+  },
+});

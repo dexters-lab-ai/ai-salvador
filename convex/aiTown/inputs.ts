@@ -1,7 +1,7 @@
 import { ObjectType } from 'convex/values';
 import { playerInputs } from './player';
 import { conversationInputs } from './conversation';
-import { agentInputs } from './agentInputs';
+import { agentInputs } from './agent';
 
 // It's easy to hit circular dependencies with these imports,
 // so assert at module scope so we hit errors when analyzing.

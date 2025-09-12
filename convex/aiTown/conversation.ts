@@ -192,6 +192,21 @@ export class Conversation {
 
   stop(game: Game, now: number) {
     delete this.isTyping;
+
+    const participants = [...this.participants.keys()];
+    const player1 = game.world.players.get(participants[0])!;
+    const player2 = game.world.players.get(participants[1])!;
+
+    const agentPlayer = player1.human ? player2 : player1;
+    const touristPlayer = player1.human ? player1 : player2;
+
+    if (agentPlayer && touristPlayer && touristPlayer.human) {
+      game.scheduleOperation('earnFromConversation', {
+        agentId: agentPlayer.id,
+        touristId: touristPlayer.id,
+      });
+    }
+
     for (const [playerId, member] of this.participants.entries()) {
       const agent = [...game.world.agents.values()].find((a) => a.playerId === playerId);
       if (agent) {

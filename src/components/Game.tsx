@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import PixiGame from './PixiGame.tsx';
 
 import { useElementSize } from 'usehooks-ts';
@@ -10,17 +10,24 @@ import { useWorldHeartbeat } from '../hooks/useWorldHeartbeat.ts';
 import { useHistoricalTime } from '../hooks/useHistoricalTime.ts';
 import { DebugTimeManager } from './DebugTimeManager.tsx';
 import { GameId } from '../../convex/aiTown/ids.ts';
+import closeImg from '../../assets/close.svg';
 import { useServerGame } from '../hooks/serverGame.ts';
 
 export const SHOW_DEBUG_UI = !!import.meta.env.VITE_SHOW_DEBUG_UI;
 
-export default function Game() {
+export default function Game({
+  isExpanded,
+  setIsExpanded,
+}: {
+  isExpanded: boolean;
+  setIsExpanded: Dispatch<SetStateAction<boolean>>;
+}) {
   const convex = useConvex();
   const [selectedElement, setSelectedElement] = useState<{
     kind: 'player';
     id: GameId<'players'>;
   }>();
-  const [gameWrapperRef, { width, height }] = useElementSize();
+  const [gameWrapperRef, { width = 0, height = 0 }] = useElementSize();
 
   const worldStatus = useQuery(api.world.defaultWorldStatus);
   const worldId = worldStatus?.worldId;
@@ -33,8 +40,25 @@ export default function Game() {
 
   const worldState = useQuery(api.world.worldState, worldId ? { worldId } : 'skip');
   const { historicalTime, timeManager } = useHistoricalTime(worldState?.engine);
-
   const scrollViewRef = useRef<HTMLDivElement>(null);
+
+  const userPlayerDoc = useQuery(api.players.user, worldId ? { worldId } : 'skip');
+    const userPlayer = userPlayerDoc && game ? game.world.players.get(userPlayerDoc.id as GameId<'players'>) : undefined;
+
+  useEffect(() => {
+    // When the user joins, select them and pan the camera over.
+    if (userPlayer && !selectedElement) {
+      setSelectedElement({ kind: 'player', id: userPlayer.id });
+    }
+    // Only run this when the user player joins.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userPlayer?.id]);
+
+  
+  if (historicalTime === undefined) {
+    // The engine is still loading, so we can't render the game yet.
+    return null;
+  }
 
   if (!worldId || !engineId || !game) {
     return null;
@@ -42,32 +66,57 @@ export default function Game() {
   return (
     <>
       {SHOW_DEBUG_UI && <DebugTimeManager timeManager={timeManager} width={200} height={100} />}
-      <div className="mx-auto w-full max-w grid grid-rows-[240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[1fr_auto] lg:grow max-w-[1400px] min-h-[480px] game-frame">
+      <div
+        className={`mx-auto w-full grid lg:grow max-w-[1400px] game-frame box-content ${
+          isExpanded
+            ? 'h-[700px] lg:grid-cols-[1fr_auto]'
+            : 'h-[480px] grid-rows-[240px_1fr] lg:grid-rows-[1fr] lg:grid-cols-[1fr_auto]'
+        }`}
+      >
         {/* Game area */}
-        <div className="relative overflow-hidden bg-brown-900" ref={gameWrapperRef}>
+        <div
+          className="relative overflow-hidden bg-brown-900 cursor-pointer"
+          ref={gameWrapperRef}
+          onClick={() => !isExpanded && setIsExpanded(true)}
+        >
+          {isExpanded && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(false);
+              }}
+              className="absolute top-4 right-4 z-10 bg-brown-800 rounded-full p-2"
+            >
+              <img src={closeImg} alt="Close" className="w-6 h-6" />
+            </button>
+          )}
           <div className="absolute inset-0">
             <div className="container">
-              <Stage width={width} height={height} options={{ backgroundColor: 0x7ab5ff }}>
-                {/* Re-propagate context because contexts are not shared between renderers.
+              {width > 0 && height > 0 && (
+                <Stage width={width} height={height} options={{ backgroundColor: 0x7ab5ff }}>
+                  {/* Re-propagate context because contexts are not shared between renderers.
 https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-531549215 */}
-                <ConvexProvider client={convex}>
-                  <PixiGame
-                    game={game}
-                    worldId={worldId}
-                    engineId={engineId}
-                    width={width}
-                    height={height}
-                    historicalTime={historicalTime}
-                    setSelectedElement={setSelectedElement}
-                  />
-                </ConvexProvider>
-              </Stage>
+                  <ConvexProvider client={convex}>
+                    <PixiGame
+                      game={game}
+                      worldId={worldId}
+                      engineId={engineId}
+                      width={width}
+                      height={height}
+                      historicalTime={historicalTime}
+                      setSelectedElement={setSelectedElement}
+                    />
+                  </ConvexProvider>
+                </Stage>
+              )}
             </div>
           </div>
         </div>
         {/* Right column area */}
         <div
-          className="flex flex-col overflow-y-auto shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900  bg-brown-800 text-brown-100"
+          className={`flex-col overflow-y-auto custom-scroll shrink-0 px-4 py-6 sm:px-6 lg:w-96 xl:pr-6 border-t-8 sm:border-t-0 sm:border-l-8 border-brown-900 bg-brown-800 text-brown-100 ${
+            isExpanded ? 'hidden lg:flex' : 'flex'
+          }`}
           ref={scrollViewRef}
         >
           <PlayerDetails

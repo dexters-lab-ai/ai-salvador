@@ -15,6 +15,7 @@ export const Character = ({
   emoji = '',
   isViewer = false,
   speed = 0.1,
+  btcBalance,
   onClick,
 }: {
   // Path to the texture packed image.
@@ -35,6 +36,7 @@ export const Character = ({
   isViewer?: boolean;
   // The speed of the animation. Can be tuned depending on the side and speed of the NPC.
   speed?: number;
+  btcBalance?: number;
   onClick: () => void;
 }) => {
   const [spriteSheet, setSpriteSheet] = useState<Spritesheet>();
@@ -103,6 +105,15 @@ export const Character = ({
       />
       {emoji && (
         <Text x={0} y={-24} scale={{ x: -0.8, y: 0.8 }} text={emoji} anchor={{ x: 0.5, y: 0.5 }} />
+      )}
+      {btcBalance !== undefined && (
+        <Text
+          x={0}
+          y={24}
+          text={`BTC: ${btcBalance.toFixed(4)}`}
+          anchor={{ x: 0.5, y: 0.5 }}
+          style={new PIXI.TextStyle({ fontSize: 10, fill: 'white' })}
+        />
       )}
     </Container>
   );

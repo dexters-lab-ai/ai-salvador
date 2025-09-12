@@ -26,23 +26,27 @@ export async function startConversationMessage(
       conversationId,
     },
   );
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `${player.name} is talking to ${otherPlayer.name}`,
-  );
-
-  const memories = await memory.searchMemories(
-    ctx,
-    player.id as GameId<'players'>,
-    embedding,
-    Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
-  );
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `${player.name} is talking to ${otherPlayer.name}`,
+    );
+    memories = await memory.searchMemories(
+      ctx,
+      player.id as GameId<'players'>,
+      embedding,
+      Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
+    );
+  } catch (e) {
+    console.error('Embedding/memory fetch failed (startConversationMessage). Continuing without memories.', e);
+  }
 
   const memoryWithOtherPlayer = memories.find(
     (m) => m.data.type === 'conversation' && m.data.playerIds.includes(otherPlayerId),
   );
   const prompt = [
-    `You are ${player.name}, and you just started a conversation with ${otherPlayer.name}.`,
+    `You are ${player.name}, and you just started a conversation with ${otherPlayer.name}. Keep your reply under 120 characters.`,
   ];
   prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
   prompt.push(...previousConversationPrompt(otherPlayer, lastConversation));
@@ -55,17 +59,23 @@ export async function startConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   prompt.push(lastPrompt);
 
-  const { content } = await chatCompletion({
-    messages: [
-      {
-        role: 'system',
-        content: prompt.join('\n'),
-      },
-    ],
-    max_tokens: 300,
-    stop: stopWords(otherPlayer.name, player.name),
-  });
-  return trimContentPrefx(content, lastPrompt);
+  try {
+    const { content } = await chatCompletion({
+      messages: [
+        {
+          role: 'system',
+          content: prompt.join('\n'),
+        },
+      ],
+      max_tokens: 120,
+      temperature: 0.5,
+      stop: stopWords(otherPlayer.name, player.name),
+    });
+    return trimContentPrefx(content, lastPrompt);
+  } catch (e) {
+    console.error('LLM error (startConversationMessage):', e);
+    return 'Hey!';
+  }
 }
 
 function trimContentPrefx(content: string, prompt: string) {
@@ -93,13 +103,23 @@ export async function continueConversationMessage(
   );
   const now = Date.now();
   const started = new Date(conversation.created);
-  const embedding = await embeddingsCache.fetch(
-    ctx,
-    `What do you think about ${otherPlayer.name}?`,
-  );
-  const memories = await memory.searchMemories(ctx, player.id as GameId<'players'>, embedding, 3);
+  let memories: memory.Memory[] = [];
+  try {
+    const embedding = await embeddingsCache.fetch(
+      ctx,
+      `What do you think about ${otherPlayer.name}?`,
+    );
+    memories = await memory.searchMemories(
+      ctx,
+      player.id as GameId<'players'>,
+      embedding,
+      Number(process.env.NUM_MEMORIES_TO_SEARCH) || NUM_MEMORIES_TO_SEARCH,
+    );
+  } catch (e) {
+    console.error('Embedding/memory fetch failed (continueConversationMessage). Continuing without memories.', e);
+  }
   const prompt = [
-    `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
+    `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}. Keep replies under 120 characters.`,
     `The conversation started at ${started.toLocaleString()}. It's now ${now.toLocaleString()}.`,
   ];
   prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
@@ -125,12 +145,18 @@ export async function continueConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
-    messages: llmMessages,
-    max_tokens: 300,
-    stop: stopWords(otherPlayer.name, player.name),
-  });
-  return trimContentPrefx(content, lastPrompt);
+  try {
+    const { content } = await chatCompletion({
+      messages: llmMessages,
+      max_tokens: 120,
+      temperature: 0.5,
+      stop: stopWords(otherPlayer.name, player.name),
+    });
+    return trimContentPrefx(content, lastPrompt);
+  } catch (e) {
+    console.error('LLM error (continueConversationMessage):', e);
+    return 'Sounds good.';
+  }
 }
 
 export async function leaveConversationMessage(
@@ -150,8 +176,8 @@ export async function leaveConversationMessage(
     },
   );
   const prompt = [
-    `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}.`,
-    `You've decided to leave the question and would like to politely tell them you're leaving the conversation.`,
+    `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}. Keep replies under 120 characters.`,
+    `You've decided to leave and would like to politely tell them you're leaving the conversation.`,
   ];
   prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
   prompt.push(
@@ -174,12 +200,17 @@ export async function leaveConversationMessage(
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
   llmMessages.push({ role: 'user', content: lastPrompt });
 
-  const { content } = await chatCompletion({
-    messages: llmMessages,
-    max_tokens: 300,
-    stop: stopWords(otherPlayer.name, player.name),
-  });
-  return trimContentPrefx(content, lastPrompt);
+  try {
+    const { content } = await chatCompletion({
+      messages: llmMessages,
+      max_tokens: 120,
+      stop: stopWords(otherPlayer.name, player.name),
+    });
+    return trimContentPrefx(content, lastPrompt);
+  } catch (e) {
+    console.error('LLM error (leaveConversationMessage):', e);
+    return 'I have to go now. Talk later!';
+  }
 }
 
 function agentPrompts(
@@ -331,8 +362,8 @@ export const queryPromptData = internalQuery({
       }
     }
     return {
-      player: { name: playerDescription.name, ...player },
-      otherPlayer: { name: otherPlayerDescription.name, ...otherPlayer },
+      player: { ...player, name: playerDescription.name },
+      otherPlayer: { ...otherPlayer, name: otherPlayerDescription.name },
       conversation,
       agent: { identity: agentDescription.identity, plan: agentDescription.plan, ...agent },
       otherAgent: otherAgent && {

@@ -3,17 +3,36 @@ import { internalAction } from '../_generated/server';
 import { WorldMap, serializedWorldMap } from './worldMap';
 import { rememberConversation } from '../agent/memory';
 import { GameId, agentId, conversationId, playerId } from './ids';
-import {
-  continueConversationMessage,
-  leaveConversationMessage,
-  startConversationMessage,
-} from '../agent/conversation';
+import { Id } from '../_generated/dataModel';
+import { continueConversationMessage, leaveConversationMessage, startConversationMessage } from '../agent/conversation';
+import { latestMemoryOfType, rememberMarketSentiment } from '../agent/memory';
 import { assertNever } from '../util/assertNever';
 import { serializedAgent } from './agent';
 import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constants';
 import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
+import { distance } from '../util/geometry';
+
+export const agentReadNews = internalAction({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    agentId,
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const article = await ctx.runQuery(api.news.getRandomNewsArticle);
+    if (article) {
+      const memory = `I read an article from ${article.source} with the headline "${article.headline}". The article says: ${article.content}`;
+      await ctx.runAction(internal.agent.memory.agentRemember, {
+        agentId: args.agentId,
+        playerId: args.playerId as GameId<'players'>,
+        memory,
+      });
+    }
+  },
+});
 
 export const agentRememberConversation = internalAction({
   args: {
@@ -103,6 +122,23 @@ export const agentDoSomething = internalAction({
     const { player, agent } = args;
     const map = new WorldMap(args.map);
     const now = Date.now();
+
+    const villageState = await ctx.runQuery(api.world.villageState, {});
+    if (villageState && villageState.marketSentiment !== 'neutral') {
+      const lastSentimentMemory = await ctx.runQuery(internal.agent.memory.getLatestSentimentMemory, {
+        playerId: player.id as GameId<'players'>,
+      });
+      if (!lastSentimentMemory || lastSentimentMemory.data.sentiment !== villageState.marketSentiment) {
+        await rememberMarketSentiment(
+          ctx,
+          agent.id as GameId<'agents'>,
+          player.id as GameId<'players'>,
+          villageState.marketSentiment,
+        );
+      }
+    }
+
+
     // Don't try to start a new conversation if we were just in one.
     const justLeftConversation =
       agent.lastConversation && now < agent.lastConversation + CONVERSATION_COOLDOWN;
@@ -110,6 +146,70 @@ export const agentDoSomething = internalAction({
     const recentlyAttemptedInvite =
       agent.lastInviteAttempt && now < agent.lastInviteAttempt + CONVERSATION_COOLDOWN;
     const recentActivity = player.activity && now < player.activity.until + ACTIVITY_COOLDOWN;
+
+    // Decide whether to read the news.
+    const readNews = Math.random() < 0.1; // 10% chance to read the news
+    if (readNews) {
+      const activity = ACTIVITIES.find(a => a.description === 'reading the news')!;
+      console.log(`Agent ${agent.id} reading the news`);
+      await ctx.runMutation(api.aiTown.main.sendInput, {
+        worldId: args.worldId,
+        name: 'finishDoSomething',
+        args: {
+          operationId: args.operationId,
+          agentId: agent.id,
+          activity: {
+            description: activity.description,
+            emoji: activity.emoji,
+            until: now + activity.duration,
+          },
+          operation: {
+            name: 'agentReadNews',
+            args: { worldId: args.worldId, playerId: player.id, agentId: agent.id },
+          },
+        },
+      });
+      return;
+    }
+
+    const portfolio = await ctx.runQuery(api.economy.getPortfolio, { playerId: player.id });
+
+    if (portfolio && portfolio.btcBalance >= 1) {
+      await ctx.runMutation(api.aiTown.main.sendInput, {
+        worldId: args.worldId,
+        name: 'finishDoSomething',
+        args: {
+          operationId: args.operationId,
+          agentId: agent.id,
+          activity: {
+            description: 'Feeling happy!',
+            emoji: '😊',
+            until: Date.now() + 110000, // 1 minute
+          },
+        },
+      });
+      return;
+    }
+
+    // Decide whether to hustle a tourist.
+    const tourists = args.otherFreePlayers.filter((p) => p.human);
+    if (tourists.length > 0) {
+      const nearbyTourists = tourists.filter(
+        (p) => distance(player.position, p.position) < 5,
+      );
+      if (nearbyTourists.length > 0) {
+        // Hustle a random nearby tourist with a 10% chance.
+        if (Math.random() < 0.1) {
+          const tourist = nearbyTourists[Math.floor(Math.random() * nearbyTourists.length)];
+          await ctx.runMutation(internal.economy.hustle, {
+            agentId: player.id,
+            touristId: tourist.id,
+          });
+          return;
+        }
+      }
+    }
+
     // Decide whether to do an activity or wander somewhere.
     if (!player.pathfinding) {
       if (recentActivity || justLeftConversation) {

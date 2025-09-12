@@ -39,7 +39,8 @@ export const aiTownTables = {
   agentDescriptions: defineTable({
     worldId: v.id('worlds'),
     ...serializedAgentDescription,
-  }).index('worldId', ['worldId', 'agentId']),
+  }).index('worldId', ['worldId', 'agentId'])
+  .index('agentId', ['agentId']),
 
   //The game engine doesn't want to track players that have left or conversations that are over, since
   // it wants to keep its managed state small. However, we may want to look at old conversations in the

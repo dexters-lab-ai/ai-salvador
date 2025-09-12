@@ -8,6 +8,12 @@ import { v } from 'convex/values';
 const crons = cronJobs();
 
 crons.interval(
+  'update BTC price',
+  { minutes: 5 },
+  internal.village.updateBtcPrice,
+);
+
+crons.interval(
   'stop inactive worlds',
   { seconds: IDLE_WORLD_TIMEOUT / 1000 },
   internal.world.stopInactiveWorlds,

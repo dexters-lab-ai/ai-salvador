@@ -21,12 +21,15 @@ export type ViewportProps = {
 export default PixiComponent('Viewport', {
   create(props: ViewportProps) {
     const { app, children, viewportRef, ...viewportProps } = props;
-    const viewport = new Viewport({
+    // pixi-viewport's TS types don't include the 'events' option in some versions.
+    // Build the options object and cast to any to preserve behavior while keeping TS happy.
+    const options: any = {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
       events: app.renderer.events,
       passiveWheel: false,
       ...viewportProps,
-    });
+    };
+    const viewport = new Viewport(options);
     if (viewportRef) {
       viewportRef.current = viewport;
     }

@@ -27,6 +27,13 @@ export const memoryFields = {
       type: v.literal('reflection'),
       relatedMemoryIds: v.array(v.id('memories')),
     }),
+    v.object({
+      type: v.literal('observation')
+    }),
+    v.object({
+      type: v.literal('marketSentiment'),
+      sentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
+    }),
   ),
 };
 export const memoryTables = {

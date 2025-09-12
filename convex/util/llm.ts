@@ -4,7 +4,9 @@ const OPENAI_EMBEDDING_DIMENSION = 1536;
 const TOGETHER_EMBEDDING_DIMENSION = 768;
 const OLLAMA_EMBEDDING_DIMENSION = 1024;
 
-export const EMBEDDING_DIMENSION: number = OLLAMA_EMBEDDING_DIMENSION;
+// Default to OpenAI for production friendliness and lowest total cost with small models.
+// You can override via environment variables as before.
+export const EMBEDDING_DIMENSION: number = OPENAI_EMBEDDING_DIMENSION;
 
 export function detectMismatchedLLMProvider() {
   switch (EMBEDDING_DIMENSION) {
@@ -52,8 +54,10 @@ export function getLLMConfig(): LLMConfig {
     return {
       provider: 'openai',
       url: 'https://api.openai.com',
+      // gpt-4o-mini is cost-effective; override via OPENAI_CHAT_MODEL if desired
       chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o-mini',
-      embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-ada-002',
+      // Use text-embedding-3-small for the lowest-cost 1536-dim embeddings
+      embeddingModel: process.env.OPENAI_EMBEDDING_MODEL ?? 'text-embedding-3-small',
       stopWords: [],
       apiKey: process.env.OPENAI_API_KEY,
     };

@@ -44,6 +44,9 @@ export type Activity = Infer<typeof activity>;
 
 export const serializedPlayer = {
   id: playerId,
+  name: v.optional(v.string()),
+  characterName: v.optional(v.string()),
+  description: v.optional(v.string()),
   human: v.optional(v.string()),
   pathfinding: v.optional(pathfinding),
   activity: v.optional(activity),
@@ -54,11 +57,16 @@ export const serializedPlayer = {
   position: point,
   facing: vector,
   speed: v.number(),
+  // Optional multipliers for special events (e.g., chase)
+  speedMultiplier: v.optional(v.number()),
 };
 export type SerializedPlayer = ObjectType<typeof serializedPlayer>;
 
 export class Player {
   id: GameId<'players'>;
+  name: string;
+  characterName: string;
+  description: string;
   human?: string;
   pathfinding?: Pathfinding;
   activity?: Activity;
@@ -68,10 +76,14 @@ export class Player {
   position: Point;
   facing: Vector;
   speed: number;
+  speedMultiplier?: number;
 
   constructor(serialized: SerializedPlayer) {
-    const { id, human, pathfinding, activity, lastInput, position, facing, speed } = serialized;
+    const { id, name, characterName, description, human, pathfinding, activity, lastInput, position, facing, speed, speedMultiplier } = serialized;
     this.id = parseGameId('players', id);
+    this.name = name ?? 'Unknown';
+    this.characterName = characterName ?? 'f1';
+    this.description = description ?? '';
     this.human = human;
     this.pathfinding = pathfinding;
     this.activity = activity;
@@ -79,6 +91,7 @@ export class Player {
     this.position = position;
     this.facing = facing;
     this.speed = speed;
+    this.speedMultiplier = speedMultiplier;
   }
 
   tick(game: Game, now: number) {
@@ -169,6 +182,7 @@ export class Player {
     game: Game,
     now: number,
     name: string,
+    characterName: string,
     character: string,
     description: string,
     tokenIdentifier?: string,
@@ -217,6 +231,9 @@ export class Player {
       playerId,
       new Player({
         id: playerId,
+        name,
+        characterName,
+        description,
         human: tokenIdentifier,
         lastInput: now,
         position,
@@ -249,9 +266,12 @@ export class Player {
   }
 
   serialize(): SerializedPlayer {
-    const { id, human, pathfinding, activity, lastInput, position, facing, speed } = this;
+    const { id, name, characterName, description, human, pathfinding, activity, lastInput, position, facing, speed, speedMultiplier } = this;
     return {
       id,
+      name,
+      characterName,
+      description,
       human,
       pathfinding,
       activity,
@@ -259,6 +279,7 @@ export class Player {
       position,
       facing,
       speed,
+      speedMultiplier,
     };
   }
 }
@@ -267,17 +288,27 @@ export const playerInputs = {
   join: inputHandler({
     args: {
       name: v.string(),
+      characterName: v.string(),
       character: v.string(),
       description: v.string(),
       tokenIdentifier: v.optional(v.string()),
     },
     handler: (game, now, args) => {
-      Player.join(game, now, args.name, args.character, args.description, args.tokenIdentifier);
+      Player.join(
+        game,
+        now,
+        args.name,
+        args.characterName,
+        args.character,
+        args.description,
+        args.tokenIdentifier,
+      );
       return null;
     },
   }),
+
   leave: inputHandler({
-    args: { playerId },
+    args: { playerId: v.string() },
     handler: (game, now, args) => {
       const playerId = parseGameId('players', args.playerId);
       const player = game.world.players.get(playerId);
@@ -288,9 +319,10 @@ export const playerInputs = {
       return null;
     },
   }),
+
   moveTo: inputHandler({
     args: {
-      playerId,
+      playerId: v.string(),
       destination: v.union(point, v.null()),
     },
     handler: (game, now, args) => {
@@ -303,6 +335,69 @@ export const playerInputs = {
         movePlayer(game, now, player, args.destination);
       } else {
         stopPlayer(player);
+      }
+      return null;
+    },
+  }),
+
+  // Move even if conversing (for scripted events like chases)
+  forceMoveTo: inputHandler({
+    args: {
+      playerId: v.string(),
+      destination: v.union(point, v.null()),
+    },
+    handler: (game, now, args) => {
+      const playerId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerId);
+      if (!player) {
+        throw new Error(`Invalid player ID ${playerId}`);
+      }
+      if (args.destination) {
+        movePlayer(game, now, player, args.destination, true);
+      } else {
+        stopPlayer(player);
+      }
+      return null;
+    },
+  }),
+
+  // Set temporary activity banner with optional emoji
+  setActivity: inputHandler({
+    args: {
+      playerId: v.string(),
+      description: v.string(),
+      emoji: v.optional(v.string()),
+      durationMs: v.number(),
+    },
+    handler: (game, now, args) => {
+      const playerId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerId);
+      if (!player) {
+        throw new Error(`Invalid player ID ${playerId}`);
+      }
+      player.activity = {
+        description: args.description,
+        emoji: args.emoji,
+        until: now + args.durationMs,
+      };
+      return null;
+    },
+  }),
+
+  // Set a temporary speed multiplier (e.g., chase boost)
+  setSpeedMultiplier: inputHandler({
+    args: {
+      playerId: v.string(),
+      multiplier: v.union(v.number(), v.null()),
+    },
+    handler: (game, now, args) => {
+      const playerId = parseGameId('players', args.playerId);
+      const player = game.world.players.get(playerId);
+      if (!player) throw new Error(`Invalid player ID ${playerId}`);
+      if (args.multiplier === null) {
+        delete player.speedMultiplier;
+      } else {
+        player.speedMultiplier = args.multiplier;
       }
       return null;
     },

@@ -6,6 +6,7 @@ import { conversationId, playerId } from './aiTown/ids';
 import { engineTables } from './engine/schema';
 
 export default defineSchema({
+  // Existing tables...
   music: defineTable({
     storageId: v.string(),
     type: v.union(v.literal('background'), v.literal('player')),
@@ -20,6 +21,55 @@ export default defineSchema({
   })
     .index('conversationId', ['worldId', 'conversationId'])
     .index('messageUuid', ['conversationId', 'messageUuid']),
+
+  // AI Salvador specific tables
+  villageState: defineTable({
+    treasury: v.float64(), // Stored in BTC
+    btcPrice: v.float64(), // Current price in USD
+    previousBtcPrice: v.float64(), // Previous price, for trend tracking
+    marketSentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
+    touristCount: v.optional(v.float64()),
+  }),
+
+  portfolios: defineTable({
+    playerId: v.string(),
+    btcBalance: v.number(),
+  }).index('by_playerId', ['playerId']),
+
+  transactions: defineTable({
+    playerId: v.string(),
+    type: v.union(v.literal('entry_fee'), v.literal('hustle'), v.literal('earning')),
+    amount: v.number(), // Amount in BTC
+    timestamp: v.number(),
+  }).index('by_playerId', ['playerId']),
+
+  historicalPrices: defineTable({
+    timestamp: v.number(),
+    price: v.number(),
+  }).index('by_timestamp', ['timestamp']),
+
+  hustles: defineTable({
+    agentId: v.string(),
+    touristId: v.string(),
+    amount: v.number(),
+    status: v.union(v.literal('pending'), v.literal('accepted'), v.literal('rejected')),
+  }).index('by_touristId', ['touristId', 'status']),
+
+  news: defineTable({
+    source: v.string(),
+    headline: v.string(),
+    content: v.string(),
+    timestamp: v.number(),
+  }),
+
+  // Waiting pool for logged-in users when the world is full
+  waitingPool: defineTable({
+    tokenIdentifier: v.string(),
+    createdAt: v.number(),
+    worldId: v.id('worlds'),
+  })
+    .index('by_worldId', ['worldId'])
+    .index('by_token', ['worldId', 'tokenIdentifier']),
 
   ...agentTables,
   ...aiTownTables,
