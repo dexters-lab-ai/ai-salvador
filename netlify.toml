@@ -1,15 +1,9 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
-# Handle static files first
-[[redirects]]
-  from = "/assets/*"
-  to = "/assets/:splat"
-  status = 200
-  force = true
-
-# Handle all other routes with SPA fallback
+# Handle all routes with SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -20,3 +14,4 @@
   for = "/assets/*"
   [headers.values]
     cache-control = "public, max-age=31536000, immutable"
+    access-control-allow-origin = "*"

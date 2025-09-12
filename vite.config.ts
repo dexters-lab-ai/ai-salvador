@@ -5,7 +5,7 @@ import { resolve } from 'path';
 // https://vitejs.dev/config/
 export default defineConfig({
   // Use root path for deployment
-  base: '/',
+  base: process.env.VITE_BASE_URL || '/',
   plugins: [react()],
   server: {
     allowedHosts: ['ai-salvador.netlify.app', 'localhost', '127.0.0.1'],
