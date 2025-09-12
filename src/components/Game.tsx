@@ -61,7 +61,17 @@ export default function Game({
   }
 
   if (!worldId || !engineId || !game) {
-    return null;
+    // Add a debug view to see what's missing
+    return (
+      <div className="absolute inset-0 z-10 bg-black/80 text-white p-4 font-mono text-xs">
+        <h2 className="text-lg font-bold mb-2">Debug: Waiting for data...</h2>
+        <p>World ID: {worldId ?? 'missing'}</p>
+        <p>Engine ID: {engineId ?? 'missing'}</p>
+        <p>Game State: {game ? 'loaded' : 'missing'}</p>
+        <p>Historical Time: {historicalTime === undefined ? 'missing' : 'loaded'}</p>
+        <p className="mt-4 opacity-70">The game canvas will not render until all of the above are loaded. If this persists, check the Convex dashboard for your production deployment to ensure the world has been initialized (run `npx convex run init --prod`).</p>
+      </div>
+    );
   }
   return (
     <>
