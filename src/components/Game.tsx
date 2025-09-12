@@ -55,21 +55,22 @@ export default function Game({
   }, [userPlayer?.id]);
 
   
-  if (historicalTime === undefined) {
-    // The engine is still loading, so we can't render the game yet.
-    return null;
-  }
+  // Debug view to diagnose rendering issues.
+  const debugInfo = {
+    worldStatus: JSON.stringify(worldStatus),
+    worldId: worldId ?? 'undefined',
+    engineId: engineId ?? 'undefined',
+    game: game ? 'loaded' : 'undefined',
+    worldState: worldState ? 'loaded' : 'undefined',
+    historicalTime: historicalTime === undefined ? 'undefined' : historicalTime,
+  };
 
-  if (!worldId || !engineId || !game) {
-    // Add a debug view to see what's missing
+  if (!worldId || !engineId || !game || historicalTime === undefined) {
     return (
-      <div className="absolute inset-0 z-10 bg-black/80 text-white p-4 font-mono text-xs">
+      <div className="absolute inset-0 z-10 bg-black/80 text-white p-4 font-mono text-xs overflow-auto">
         <h2 className="text-lg font-bold mb-2">Debug: Waiting for data...</h2>
-        <p>World ID: {worldId ?? 'missing'}</p>
-        <p>Engine ID: {engineId ?? 'missing'}</p>
-        <p>Game State: {game ? 'loaded' : 'missing'}</p>
-        <p>Historical Time: {historicalTime === undefined ? 'missing' : 'loaded'}</p>
-        <p className="mt-4 opacity-70">The game canvas will not render until all of the above are loaded. If this persists, check the Convex dashboard for your production deployment to ensure the world has been initialized (run `npx convex run init --prod`).</p>
+        <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
+        <p className="mt-4 opacity-70">The game canvas will not render until all values above are loaded (not 'undefined' or 'null'). If this persists, check the Convex dashboard for your production deployment to ensure the world has been initialized (run `npx convex run init --prod`).</p>
       </div>
     );
   }
