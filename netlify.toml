@@ -2,13 +2,20 @@
   command = "npm run build"
   publish = "dist"
 
-# Single Page App fallback: send all routes to index.html
+# Handle static files first
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+  force = true
+
+# Handle all other routes with SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Optional: stronger static caching for built assets
+# Strong caching for static assets
 [[headers]]
   for = "/assets/*"
   [headers.values]
