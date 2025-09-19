@@ -3,9 +3,13 @@ import { internalAction } from '../_generated/server';
 import { WorldMap, serializedWorldMap } from './worldMap';
 import { rememberConversation } from '../agent/memory';
 import { GameId, agentId, conversationId, playerId } from './ids';
-import { Id } from '../_generated/dataModel';
-import { continueConversationMessage, leaveConversationMessage, startConversationMessage } from '../agent/conversation';
-import { latestMemoryOfType, rememberMarketSentiment } from '../agent/memory';
+import { Doc, Id } from '../_generated/dataModel';
+import {
+  continueConversationMessage,
+  leaveConversationMessage,
+  startConversationMessage,
+} from '../agent/conversation';
+import { rememberMarketSentiment } from '../agent/memory';
 import { assertNever } from '../util/assertNever';
 import { serializedAgent } from './agent';
 import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constants';
@@ -13,6 +17,7 @@ import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
 import { distance } from '../util/geometry';
+import { chatCompletion } from '../util/llm';
 
 export const agentReadNews = internalAction({
   args: {
@@ -86,7 +91,7 @@ export const agentGenerateMessage = internalAction({
         completionFn = leaveConversationMessage;
         break;
       default:
-        assertNever(args.type);
+        assertNever(args.type as never);
     }
     const text = await completionFn(
       ctx,
@@ -96,7 +101,28 @@ export const agentGenerateMessage = internalAction({
       args.otherPlayerId as GameId<'players'>,
     );
 
-    await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
+    const conversationMembers = await ctx.runQuery(internal.agent.conversation.queryPromptData, {
+      worldId: args.worldId,
+      playerId: args.playerId as GameId<'players'>,
+      otherPlayerId: args.otherPlayerId as GameId<'players'>,
+      conversationId: args.conversationId as GameId<'conversations'>,
+    });
+    const { player, otherPlayer } = conversationMembers;
+    const isIceToMs13 = player.name === 'ICE' && otherPlayer.name === 'MS-13';
+    const isMs13ToIce = player.name === 'MS-13' && otherPlayer.name === 'ICE';
+
+    if (isIceToMs13 && text.toLowerCase().match(/\bid\b|identification|papers/)) {
+      console.log('ICE is asking for ID. Triggering chase...');
+      await ctx.runMutation(api.world.triggerChase, { worldId: args.worldId });
+    } else if (args.type === 'start' && (isIceToMs13 || isMs13ToIce)) {
+      console.log('ICE and MS-13 started a conversation. Setting 8s fallback chase trigger.');
+      await ctx.scheduler.runAfter(8000, internal.world.triggerChaseIfNeeded, {
+        worldId: args.worldId,
+        conversationId: args.conversationId,
+      });
+    }
+
+    await ctx.runMutation(internal.messages.agentWriteMessage, {
       worldId: args.worldId,
       conversationId: args.conversationId,
       agentId: args.agentId,
@@ -123,12 +149,43 @@ export const agentDoSomething = internalAction({
     const map = new WorldMap(args.map);
     const now = Date.now();
 
+    // President Bukele might tweet. This is a high-priority action for him.
+    if (player.name === 'President Bukele' && Math.random() < 0.1) {
+      console.log(`Agent ${agent.id} (President Bukele) deciding to compose a tweet.`);
+      // This action will call finishDoSomething itself.
+      await ctx.runAction(internal.agent.operations.agentComposeTweet, {
+        worldId: args.worldId,
+        player: args.player,
+        agent: args.agent,
+        operationId: args.operationId,
+      });
+      return;
+    }
+
+    // Any agent might read the social feed. This is a quick background action and does not
+    // prevent them from doing other things.
+    if (Math.random() < 0.05) {
+      console.log(`Agent ${agent.id} reading social feed.`);
+      await ctx.runAction(internal.agent.operations.agentReadSocialFeed, {
+        worldId: args.worldId,
+        playerId: player.id,
+        agentId: agent.id,
+        operationId: args.operationId,
+      });
+    }
+
     const villageState = await ctx.runQuery(api.world.villageState, {});
     if (villageState && villageState.marketSentiment !== 'neutral') {
-      const lastSentimentMemory = await ctx.runQuery(internal.agent.memory.getLatestSentimentMemory, {
-        playerId: player.id as GameId<'players'>,
-      });
-      if (!lastSentimentMemory || lastSentimentMemory.data.sentiment !== villageState.marketSentiment) {
+      const lastSentimentMemory = await ctx.runQuery(
+        internal.agent.memory.getLatestSentimentMemory,
+        {
+          playerId: player.id as GameId<'players'>,
+        },
+      );
+      if (
+        !lastSentimentMemory ||
+        lastSentimentMemory.data.sentiment !== villageState.marketSentiment
+      ) {
         await rememberMarketSentiment(
           ctx,
           agent.id as GameId<'agents'>,
@@ -137,7 +194,6 @@ export const agentDoSomething = internalAction({
         );
       }
     }
-
 
     // Don't try to start a new conversation if we were just in one.
     const justLeftConversation =
@@ -150,26 +206,37 @@ export const agentDoSomething = internalAction({
     // Decide whether to read the news.
     const readNews = Math.random() < 0.1; // 10% chance to read the news
     if (readNews) {
-      const activity = ACTIVITIES.find(a => a.description === 'reading the news')!;
-      console.log(`Agent ${agent.id} reading the news`);
-      await ctx.runMutation(api.aiTown.main.sendInput, {
-        worldId: args.worldId,
-        name: 'finishDoSomething',
-        args: {
-          operationId: args.operationId,
-          agentId: agent.id,
-          activity: {
-            description: activity.description,
-            emoji: activity.emoji,
-            until: now + activity.duration,
+      const article = await ctx.runQuery(api.news.getRandomNewsArticle);
+      if (article) {
+        // Conform to player.activity.article validator: strip system fields
+        const slim = {
+          source: article.source,
+          headline: article.headline,
+          content: article.content,
+          imageUrl: article.imageUrl,
+        } as const;
+        const activity = ACTIVITIES.find((a) => a.description === 'reading the news')!;
+        console.log(`Agent ${agent.id} reading the news`);
+        await ctx.runMutation(api.aiTown.main.sendInput, {
+          worldId: args.worldId,
+          name: 'finishDoSomething',
+          args: {
+            operationId: args.operationId,
+            agentId: agent.id,
+            activity: {
+              description: activity.description,
+              emoji: activity.emoji,
+              until: now + activity.duration,
+              article: slim,
+            },
+            operation: {
+              name: 'agentReadNews',
+              args: { worldId: args.worldId, playerId: player.id, agentId: agent.id },
+            },
           },
-          operation: {
-            name: 'agentReadNews',
-            args: { worldId: args.worldId, playerId: player.id, agentId: agent.id },
-          },
-        },
-      });
-      return;
+        });
+        return;
+      }
     }
 
     const portfolio = await ctx.runQuery(api.economy.getPortfolio, { playerId: player.id });
@@ -194,9 +261,7 @@ export const agentDoSomething = internalAction({
     // Decide whether to hustle a tourist.
     const tourists = args.otherFreePlayers.filter((p) => p.human);
     if (tourists.length > 0) {
-      const nearbyTourists = tourists.filter(
-        (p) => distance(player.position, p.position) < 5,
-      );
+      const nearbyTourists = tourists.filter((p) => distance(player.position, p.position) < 5);
       if (nearbyTourists.length > 0) {
         // Hustle a random nearby tourist with a 10% chance.
         if (Math.random() < 0.1) {
@@ -276,3 +341,90 @@ function wanderDestination(worldMap: WorldMap) {
     y: 1 + Math.floor(Math.random() * (worldMap.height - 2)),
   };
 }
+
+export const agentComposeTweet = internalAction({
+  args: {
+    worldId: v.id('worlds'),
+    player: v.object(serializedPlayer),
+    agent: v.object(serializedAgent),
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { player, agent } = args;
+
+    const { memories } = await ctx.runQuery(internal.agent.memory.getReflectionMemories, {
+      worldId: args.worldId,
+      playerId: player.id as GameId<'players'>,
+      numberOfItems: 10,
+    });
+
+    let tweetText;
+
+    if (memories.length > 0) {
+      const recentMemoryDescriptions = memories.map((m: Doc<'memories'>) => m.description).join('\n - ');
+
+      const prompt = `You are President Bukele of AI Salvador, a digital nation passionate about Bitcoin and technology. Based on your recent memories of conversations and events in the town, compose a short, impactful tweet (under 280 characters). Your tone is optimistic, forward-looking, and a bit tech-savvy. Do not use hashtags.
+
+Recent memories:
+- ${recentMemoryDescriptions}
+
+Tweet:`;
+
+      const { content } = await chatCompletion({
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 100,
+        temperature: 0.7,
+      });
+      tweetText = content.replace(/"/g, ''); // remove quotes from response
+    } else {
+      // Fallback tweet if no memories
+      tweetText = 'Another great day in AI Salvador! The future is bright. #Bitcoin';
+    }
+
+    if (tweetText) {
+      console.log(`Bukele's generated tweet: ${tweetText}`);
+      await ctx.runMutation(internal.world.createPendingTweet, {
+        worldId: args.worldId,
+        agentId: agent.id as GameId<'agents'>,
+        text: tweetText,
+      });
+    }
+
+    // Finish the 'doSomething' operation since tweeting was the action.
+    await ctx.runMutation(api.aiTown.main.sendInput, {
+      worldId: args.worldId,
+      name: 'finishDoSomething',
+      args: {
+        operationId: args.operationId,
+        agentId: agent.id,
+      },
+    });
+  },
+});
+
+export const agentReadSocialFeed = internalAction({
+  args: {
+    worldId: v.id('worlds'),
+    playerId,
+    agentId,
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const recentTweets = await ctx.runQuery(internal.world.getRecentTweets, { numTweets: 1 });
+    if (!recentTweets || recentTweets.length === 0) {
+      return;
+    }
+    const tweet = recentTweets[0];
+    // Agents don't read their own tweets from the feed.
+    if (tweet.authorId === args.playerId) {
+      return;
+    }
+
+    const memory = `I saw a tweet from ${tweet.authorName}: "${tweet.text}"`;
+    await ctx.runAction(internal.agent.memory.agentRemember, {
+      agentId: args.agentId as GameId<'agents'>,
+      playerId: args.playerId as GameId<'players'>,
+      memory,
+    });
+  },
+});

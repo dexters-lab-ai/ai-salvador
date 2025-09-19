@@ -1,5 +1,6 @@
+
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
-import PixiGame from './PixiGame.tsx';
+import { PixiGame } from './PixiGame';
 
 import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
@@ -12,15 +13,24 @@ import { DebugTimeManager } from './DebugTimeManager.tsx';
 import { GameId } from '../../convex/aiTown/ids.ts';
 import closeImg from '../../assets/close.svg';
 import { useServerGame } from '../hooks/serverGame.ts';
+import { Viewport } from 'pixi-viewport';
+import * as PIXI from 'pixi.js';
 
-export const SHOW_DEBUG_UI = !!import.meta.env.VITE_SHOW_DEBUG_UI;
+// Fix: Cast `import.meta` to `any` to access `env` without a type error.
+export const SHOW_DEBUG_UI = !!(import.meta as any).env.VITE_SHOW_DEBUG_UI;
 
 export default function Game({
   isExpanded,
   setIsExpanded,
+  isChaseActive,
+  isMeetingActive,
+  isPartyActive,
 }: {
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
+  isChaseActive: boolean;
+  isMeetingActive: boolean;
+  isPartyActive: boolean;
 }) {
   const convex = useConvex();
   const [selectedElement, setSelectedElement] = useState<{
@@ -34,16 +44,19 @@ export default function Game({
   const engineId = worldStatus?.engineId;
 
   const game = useServerGame(worldId);
+  // Fix: Correctly type viewportRef with Viewport from pixi-viewport and initialize.
+  const viewportRef = useRef<Viewport | undefined>(undefined);
 
   // Send a periodic heartbeat to our world to keep it alive.
-  useWorldHeartbeat();
+  useWorldHeartbeat(worldId);
 
   const worldState = useQuery(api.world.worldState, worldId ? { worldId } : 'skip');
   const { historicalTime, timeManager } = useHistoricalTime(worldState?.engine);
   const scrollViewRef = useRef<HTMLDivElement>(null);
 
   const userPlayerDoc = useQuery(api.players.user, worldId ? { worldId } : 'skip');
-    const userPlayer = userPlayerDoc && game ? game.world.players.get(userPlayerDoc.id as GameId<'players'>) : undefined;
+  const userPlayer =
+    userPlayerDoc && game ? game.world.players.get(userPlayerDoc.id as GameId<'players'>) : undefined;
 
   useEffect(() => {
     // When the user joins, select them and pan the camera over.
@@ -54,7 +67,6 @@ export default function Game({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userPlayer?.id]);
 
-  
   // Debug view to diagnose rendering issues.
   const debugInfo = {
     worldStatus: JSON.stringify(worldStatus),
@@ -65,12 +77,59 @@ export default function Game({
     historicalTime: historicalTime === undefined ? 'undefined' : historicalTime,
   };
 
+  const hasPannedForChase = useRef(false);
+  useEffect(() => {
+    if (!isChaseActive) {
+      hasPannedForChase.current = false;
+      return;
+    }
+    if (!game || hasPannedForChase.current) return;
+    const ms13Desc = [...game.playerDescriptions.values()].find((d) => d.name === 'MS-13');
+    if (!ms13Desc) return;
+    const ms13 = game.world.players.get(ms13Desc.playerId as GameId<'players'>);
+    const vp = viewportRef.current;
+    if (ms13 && vp) {
+      hasPannedForChase.current = true;
+      vp.animate({
+        position: new PIXI.Point(
+          ms13.position.x * game.worldMap.tileDim,
+          ms13.position.y * game.worldMap.tileDim,
+        ),
+        scale: 1,
+        time: 1000,
+      });
+    }
+  }, [isChaseActive, game]);
+
+  const hasPannedForMeeting = useRef(false);
+  useEffect(() => {
+    if (!isMeetingActive) {
+      hasPannedForMeeting.current = false;
+      return;
+    }
+    if (hasPannedForMeeting.current) return;
+    const vp = viewportRef.current;
+    if (vp) {
+      hasPannedForMeeting.current = true;
+      vp.animate({
+        // Pan to center of designated meeting area ~ (47,22)
+        position: new PIXI.Point(47 * 32, 22 * 32),
+        scale: 1.2,
+        time: 2000,
+      });
+    }
+  }, [isMeetingActive]);
+
   if (!worldId || !engineId || !game || historicalTime === undefined) {
     return (
       <div className="absolute inset-0 z-10 bg-black/80 text-white p-4 font-mono text-xs overflow-auto">
         <h2 className="text-lg font-bold mb-2">Debug: Waiting for data...</h2>
         <pre className="whitespace-pre-wrap">{JSON.stringify(debugInfo, null, 2)}</pre>
-        <p className="mt-4 opacity-70">The game canvas will not render until all values above are loaded (not 'undefined' or 'null'). If this persists, check the Convex dashboard for your production deployment to ensure the world has been initialized (run `npx convex run init --prod`).</p>
+        <p className="mt-4 opacity-70">
+          The game canvas will not render until all values above are loaded (not 'undefined' or
+          'null'). If this persists, check the Convex dashboard for your production deployment to
+          ensure the world has been initialized (run `npx convex run init --prod`).
+        </p>
       </div>
     );
   }
@@ -104,7 +163,11 @@ export default function Game({
           <div className="absolute inset-0">
             <div className="container">
               {width > 0 && height > 0 && (
-                <Stage width={width} height={height} options={{ backgroundColor: 0x7ab5ff }}>
+                <Stage
+                  width={width}
+                  height={height}
+                  options={{ backgroundColor: 0x7ab5ff, preserveDrawingBuffer: true }}
+                >
                   {/* Re-propagate context because contexts are not shared between renderers.
 https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-531549215 */}
                   <ConvexProvider client={convex}>
@@ -116,6 +179,9 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
                       height={height}
                       historicalTime={historicalTime}
                       setSelectedElement={setSelectedElement}
+                      viewportRef={viewportRef}
+                      isPartyActive={isPartyActive}
+                      isMeetingActive={isMeetingActive}
                     />
                   </ConvexProvider>
                 </Stage>
@@ -137,6 +203,7 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
             playerId={selectedElement?.id}
             setSelectedElement={setSelectedElement}
             scrollViewRef={scrollViewRef}
+            isMeetingActive={isMeetingActive}
           />
         </div>
       </div>

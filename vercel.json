@@ -2,8 +2,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/ai-town/:match*",
-      "destination": "/:match*"
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ]
 }

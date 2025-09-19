@@ -1,3 +1,4 @@
+
 // Based on https://codepen.io/inlet/pen/yLVmPWv.
 // Copyright (c) 2018 Patrick Brouwer, distributed under the MIT license.
 
@@ -47,12 +48,13 @@ export default PixiComponent('Viewport', {
       });
     return viewport;
   },
-  applyProps(viewport, oldProps: any, newProps: any) {
+  applyProps(viewport: any, oldProps: any, newProps: any) {
     Object.keys(newProps).forEach((p) => {
       if (p !== 'app' && p !== 'viewportRef' && p !== 'children' && oldProps[p] !== newProps[p]) {
-        // @ts-expect-error Ignoring TypeScript here
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        viewport[p] = newProps[p];
+        // Only set the property if it exists on the viewport
+        if (p in viewport) {
+          viewport[p as keyof typeof viewport] = newProps[p];
+        }
       }
     });
   },

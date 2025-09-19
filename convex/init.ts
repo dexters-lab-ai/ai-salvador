@@ -67,17 +67,23 @@ async function getOrCreateDefaultWorld(ctx: MutationCtx) {
     worldId: worldId,
   });
   worldStatus = (await ctx.db.get(worldStatusId))!;
+  // Ensure the path is absolute and doesn't include the base URL
+  const tileSetUrl = map.tilesetpath.startsWith('/') 
+    ? map.tilesetpath 
+    : `/${map.tilesetpath}`;
+
   await ctx.db.insert('maps', {
     worldId,
     width: map.mapwidth,
     height: map.mapheight,
-    tileSetUrl: map.tilesetpath,
+    tileSetUrl,
     tileSetDimX: map.tilesetpxw,
     tileSetDimY: map.tilesetpxh,
     tileDim: map.tiledim,
     bgTiles: map.bgtiles,
-    objectTiles: map.objmap,
-    animatedSprites: map.animatedsprites,
+    // Using bgtiles for both objectTiles and animatedSprites as they're not available in the map export
+    objectTiles: map.bgtiles,
+    animatedSprites: [],
   });
   await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
     worldId,

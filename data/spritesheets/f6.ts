@@ -67,9 +67,10 @@ export const data: SpritesheetData = {
     scale: '1',
   },
   animations: {
-    left: ['left', 'left2', 'left3'],
-    right: ['right', 'right2', 'right3'],
-    up: ['up', 'up2', 'up3'],
-    down: ['down', 'down2', 'down3'],
+    left: ['left', 'left2', 'left', 'left3'],
+    right: ['right', 'right2', 'right', 'right3'],
+    up: ['up', 'up2', 'up', 'up3'],
+    down: ['down', 'down2', 'down', 'down3'],
+    dance: ['down', 'right2', 'up', 'left2', 'down2', 'left', 'up2', 'right'],
   },
 };

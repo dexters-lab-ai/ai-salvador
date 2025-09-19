@@ -1,208 +1,117 @@
-# AI Town (AI Salvador) – Features & Architecture
 
-This document gives a friendly but detailed tour of the app’s capabilities and how the pieces fit together under the hood. It’s intended for both product folks and developers.
+# AI Salvador: Features & Architecture
 
----
-
-## Features Overview
-
-- Player Pools (Law of the Jungle)
-  - Live counts of Active vs Pool.
-  - “Wait” (join pool) / “Leave” (exit pool) actions.
-  - Optional “slot open” ping + TTS announcement.
-  - “Take slot” server-side mutation available for instant claims (not shown by default yet).
-
-- Cops & Robbers Chase
-  - Triggerable chase between ICE and MS-13 that converges at the cave.
-  - Reset occurs 10 seconds after both reach the destination to avoid premature reset.
-  - During a chase, President Bukele runs to (44,13) with an emergency activity banner.
-
-- Agent Conversations and TTS
-  - Conversations visible in the sidebar.
-  - TTS reads agent (not human) messages using the Web Speech API with simple male/female voice selection by agent name.
-
-- Treasury & Economy
-  - Treasury widget shows BTC holdings and a USD estimate.
-  - Agent portfolio stats.
-  - Event-driven floating text for transactions above agents.
-
-- Cinematic Landing, Map, and Overlay Actors
-  - PIXI-powered map and player rendering.
-  - Overlay “crocodile” actors zig-zagging with animated thought bubbles.
-  - Statue emoji landmark.
-
-- Admin Controls (optional)
-  - If built with `VITE_ADMIN=1`, admins can “Trigger Chase” from the UI.
+This document offers a detailed tour of AI Salvador's features and technical architecture, intended for both product stakeholders and developers looking to extend the project.
 
 ---
 
-## Key UX Surfaces
+## 1. Core Concept
 
-- `src/components/UserPoolWidget.tsx`
-  - Desktop: expanded panel at top-right, two stat tiles on the first row and the actions row beneath, aligned right.
-  - Mobile: compact icon button (🏊) that expands vertically.
-  - Particle canvases draw behind counts as background.
-
-- `src/components/Treasury.tsx`
-  - Top-left widget, expands for more context on economy and tourist counts.
-
-- `src/components/Messages.tsx`
-  - Conversation view with auto-scroll and TTS for agent lines.
-
-- `src/components/PixiGame.tsx`
-  - Main game canvas built on PIXI.
-  - Overlay crocodiles and statue layer.
+AI Salvador is a dynamic virtual world where AI-powered agents live, socialize, and participate in a simulated economy driven by cryptocurrency (BTC). As a user, you can observe this world as a spectator or join as a tourist, directly interacting with agents and influencing the town's narrative and economy.
 
 ---
 
-## Backend (Convex) Architecture
+## 2. Key Features
 
-Directories:
-- `convex/` – All Convex functions, schema, and helpers
-  - `convex/schema.ts` – Master schema; includes `waitingPool` and AI Salvador tables
-  - `convex/world.ts` – World actions like starting chase, monitoring arrival, and resetting
-  - `convex/waitingPool.ts` – Pool queries/mutations; optional `attemptTakeSlot`
-  - `convex/aiTown/*` – Original AI Town engine pieces (players, conversations, world state)
-  - `convex/constants.ts` – Engine constants shared server-side
+### Player Experience
+- **Spectator Mode:** Pan, zoom, and click on any agent to view their profile, thoughts, and conversation history without directly participating.
+- **Tourist Mode:** Join the world with a unique character and a starting BTC balance. Walk around, initiate conversations, and engage with the town's economy.
+- **Real-time Interaction:** Engage in live text or voice-to-text conversations with AI agents who remember past interactions and react to world events.
 
-### Data Model (selected)
-- `waitingPool` table
-  - Fields: `worldId`, `tokenIdentifier`, `createdAt`
-  - Indexes: `by_worldId` (world size), `by_token` (user lookup)
+### World & Agent Dynamics
+- **Persistent Agents:** AI agents have unique personalities, memories, and daily plans. They form relationships, share information, and react to their environment.
+- **Emergent Events:** The simulation engine enables unscripted events based on agent interactions:
+    - **Cops & Robbers Chase:** A high-speed chase between the town's police (ICE) and a robber (MS-13) can be triggered by specific conversation keywords, leading to a dramatic showdown at the border tunnel.
+    - **Town Meetings:** President Bukele can call all agents to a town meeting to discuss the economy, with his speech visible to observers.
+    - **Parties:** Admins can trigger spontaneous parties where all agents gather to dance, accompanied by special music and visual effects.
+- **Information Flow:** Agents read news articles that influence their mood and conversation topics, creating a dynamic information ecosystem.
 
-- AI Salvador tables (in `schema.ts`)
-  - `villageState` – treasury, btcPrice, sentiment, touristCount
-  - `portfolios` / `transactions` – very light agent economy demo
+### Economic System
+- **BTC-driven Economy:** The entire town economy is simulated around BTC.
+- **Town Treasury:** A central treasury, managed by President Bukele, grows through tourist taxes and other in-game activities. Its value is tied to a simulated, fluctuating BTC price.
+- **Agent Portfolios:** Every agent maintains a BTC balance, earning from tourists and engaging in unique economic behaviors like charging "protection fees."
+- **Live Transactions:** All economic exchanges are visualized with real-time floating text notifications, making the flow of BTC visible and engaging.
 
-### Pool Operations
-- `getPoolCounts({ worldId })` – returns `{ activeHumans, poolCount }` where `activeHumans` counts players with a `human` token.
-- `getMyPoolStatus({ worldId })` – returns `{ inPool }` for current user’s token.
-- `joinWaitingPool({ worldId })` / `leaveWaitingPool({ worldId })` – manage pool membership.
-- `attemptTakeSlot({ worldId })` – atomically claim a slot and call `world.joinWorld` if capacity is available; removes user from pool.
-
-### Chase Flow (Cops & Robbers)
-- `triggerChase({ worldId })` (mutation)
-  - Locates ICE and MS-13; sets activities and speed; moves both toward cave `(5,45)`.
-  - Dispatches President Bukele toward `(44,13)` with activity “Rushing to emergency room…”.
-  - Schedules `monitorChase` for arrival tracking.
-
-- `monitorChase({...})` (internalMutation)
-  - Waits until both agents arrive at the cave.
-  - Starts a 10-second dwell timer; upon completion, calls `resetChase`.
-
-- `resetChase({...})` (internalMutation)
-  - Transfers MS-13 balance to ICE.
-  - Clears speeds, activities, movement for ICE, MS-13, and Bukele.
-  - Optionally relocates agents to resume routine.
+### Admin & Customization
+- **Admin Controls:** An optional admin panel allows for real-time event triggering (chase, meeting, party) and the ability to inject new news articles into the world.
+- **Highly Extensible:** The entire platform is designed as a starter kit. You can easily customize characters, dialogue, map layouts, and even core game mechanics.
 
 ---
 
-## Frontend Architecture
+## 3. Technical Architecture
 
-- Framework: React + Vite + TypeScript
-- Rendering: PIXI via `@pixi/react`
-- Realtime/Data: Convex React client hooks (`useQuery`, `useMutation`)
-- Styling: Tailwind CSS
+AI Salvador is built on a modern, real-time stack that separates the game engine from the application logic for maximum flexibility.
 
-### Key Components and Helpers
-- `src/components/UserPoolWidget.tsx`
-  - Queries:
-    - `api.world.defaultWorldStatus` (get worldId)
-    - `api.waitingPool.getPoolCounts`
-    - `api.waitingPool.getMyPoolStatus`
-  - Mutations via `useConvex()`:
-    - `waitingPool.joinWaitingPool`, `waitingPool.leaveWaitingPool`
-  - Behavior:
-    - Announce capacity openings with a beep + TTS.
-    - Desktop expanded layout and mobile compact button.
+### Backend (Convex)
+The backend is powered by Convex, a reactive database and serverless function platform.
 
-- `src/components/Messages.tsx`
-  - Streams conversation messages; TTS uses `window.speechSynthesis`.
-  - Speaks only agent messages and tracks spoken IDs to avoid repeats.
+- **Data Model (`convex/schema.ts`):**
+    - `worlds`: A single document containing the real-time state of all players, agents, and active conversations.
+    - `worldStatus`: Manages the state of the game engine (running, stopped, inactive).
+    - `villageState`: A singleton document tracking global economic data like the treasury balance, BTC price, and event flags (`isPartyActive`, `meeting`).
+    - `portfolios` & `transactions`: Track the BTC holdings and economic activity of every character.
+    - `waitingPool`: Manages users waiting for a slot to open up in the game world.
+    - `memories`: A vector-searchable table where agents store summaries of their conversations, enabling long-term memory.
 
-- `src/components/PixiGame.tsx`
-  - Hosts `PixiViewport` and draws map (`PixiStaticMap`), players (`Player`), and overlays.
-  - Overlay actors are animated using the PIXI ticker (with guards for cleanup).
+- **Game Engine (`convex/engine/`):**
+    - A custom, tick-based simulation engine that runs server-side.
+    - **State Management:** The engine loads the entire world state into memory for each simulation step, processes inputs and time-based updates, and writes a diff back to the database.
+    - **Input Handling:** Player and agent actions are submitted as "inputs" which are queued and processed transactionally by the engine, ensuring consistency.
+    - **Historical State:** To enable smooth animation on the client, the engine records high-fidelity positional data for players during each tick and sends this history to the client for interpolation.
 
-- `src/components/PixiViewport.tsx`
-  - Thin custom wrapper to initialize `pixi-viewport` with correct events and plugins.
+- **Agent Logic (`convex/agent/`):**
+    - Each agent runs its logic within the game loop (`Agent.tick`).
+    - For long-running tasks like generating dialogue with an LLM, an agent schedules a Convex `internalAction`.
+    - This architecture allows agents to perform complex, asynchronous tasks without blocking the main game simulation.
 
-- `src/hooks/sendInput.ts`
-  - Small helper to send engine inputs to Convex.
+### Frontend (React + Vite + PixiJS)
+The frontend is a modern React application responsible for rendering the game world and handling user input.
 
----
+- **Rendering (`src/components/PixiGame.tsx`):**
+    - We use PixiJS for high-performance 2D rendering of the map, characters, and special effects. `@pixi/react` provides the bridge between React's component model and the PixiJS canvas.
+    - A custom `PixiViewport` component handles panning, zooming, and camera animations.
 
-## End-to-End Flows
+- **State Management (Convex Hooks):**
+    - The UI is kept in sync with the backend using Convex's real-time hooks (`useQuery`, `useMutation`).
+    - `useServerGame`: A custom hook that fetches and parses all necessary game data.
+    - `useHistoricalTime` & `useHistoricalValue`: Custom hooks that consume the historical state from the engine to interpolate character positions, ensuring smooth movement even though the server only sends full updates periodically.
 
-### A. Law of the Jungle (Pool)
-1. User lands → client reads `worldId` via `api.world.defaultWorldStatus`.
-2. `UserPoolWidget` subscribes to `waitingPool.getPoolCounts` and `getMyPoolStatus`.
-3. - If logged out: widget rotates login CTA and stats.
-   - If logged in:
-     - Shows counts and actions (Wait/Leave).
-4. When user taps “Wait”: client calls `waitingPool.joinWaitingPool`.
-5. When capacity opens:
-   - The widget detects `activeHumans < MAX_HUMAN_PLAYERS` and announces with a beep + TTS.
-   - Optional: surface a “Take slot” button wired to `attemptTakeSlot` for atomic claim.
-
-### B. Trigger Chase → Arrival → Reset
-1. Admin taps “Trigger Chase” (visible when built with `VITE_ADMIN=1`).
-2. `world.triggerChase` sets agents’ activities/speeds and moves them to the cave; also dispatches Bukele to `(44,13)`.
-3. `world.monitorChase` polls arrival of both ICE and MS-13 at `(5,45)`.
-4. When both arrive, a 10-second dwell timer starts; after that, `world.resetChase` runs to clear movement/activity/speed and transfers balances.
-
-### C. Agent Replies Read Out Loud
-1. Messages list subscribes to `api.messages` for the active conversation.
-2. Each new agent message triggers a TTS utterance.
-3. The speaking voice is selected heuristically by agent name.
+- **Key UI Components:**
+    - `UserPoolWidget.tsx`: Manages the "Law of the Jungle" waiting pool, showing live counts and providing join/leave actions.
+    - `Treasury.tsx`: Displays the town's economic status.
+    - `PlayerDetails.tsx`: The main sidebar component for viewing character profiles, conversation histories, and initiating chats.
 
 ---
 
-## Configuration & Deployment
+## 4. End-to-End Feature Flows
 
-### Frontend build-time env (Vite)
-- `VITE_CONVEX_URL` – Convex production URL (e.g., `https://<id>.convex.cloud`) – required.
-- `VITE_ADMIN` – `1` to show admin Trigger Chase; defaults to `0`.
-- `VITE_CLERK_PUBLISHABLE_KEY` – If you’re using Clerk components in the UI.
+### A. Joining the Game (Law of the Jungle)
+1. A user visits the site. The `UserPoolWidget` component queries `api.waitingPool.getPoolCounts` to display the number of active players.
+2. If `activeHumans < MAX_HUMAN_PLAYERS`, the user can click "Interact" to join.
+3. If the world is full, the user can click "Wait" to call the `waitingPool.joinWaitingPool` mutation, adding them to the pool.
+4. The client continuously polls the player count. When a slot opens, it triggers a client-side audio and TTS notification, creating a "first-come, first-served" dynamic for players in the pool to join.
 
-Pass these as Docker build args (preferred) or commit a `.env.production` file.
+### B. Cops & Robbers Chase
+1. An admin clicks "Trigger Chase," or an ICE agent asks MS-13 for "ID" in a conversation.
+2. This calls the `world.triggerChase` mutation.
+3. The mutation updates the `activity` and `speedMultiplier` for ICE, MS-13, and President Bukele via engine inputs. It also forces their movement to designated locations.
+4. It schedules an `internalMutation`, `world.monitorChase`, which periodically checks if both agents have reached their destination.
+5. Once both arrive, `monitorChase` waits 10 seconds, then calls `world.resetChase`.
+6. `resetChase` clears their special states and transfers MS-13's BTC balance to ICE.
 
-### Convex env (server-side)
-- `CLERK_HOSTNAME` – Required by `convex/auth.config.ts` when using Clerk (hostname only).
-- Other optional tokens (e.g., `REPLICATE_API_TOKEN`) if your functions use them.
-
-### Docker (Sliplane)
-- Dockerfile builds Vite app and serves via Nginx.
-- Build args to set in Sliplane:
-  - `VITE_CONVEX_URL=https://<your>.convex.cloud`
-  - `VITE_ADMIN=1` (optional)
-  - `VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxx` (optional)
-- Runtime: expose port 80; health check `GET /`.
-
----
-
-## Notes & Gotchas
-
-- Vite envs are baked at build-time; changing Sliplane runtime envs won’t affect the already-built bundle.
-- If crocs/statue aren’t visible immediately, pan to tiles around (31,33), (30,37), and (42,10). They have outline stroke for readability.
-- If you disable Clerk, either set `CLERK_HOSTNAME` to a valid hostname or make `convex/auth.config.ts` conditional.
+### C. Agent Conversation & Memory
+1. A player clicks "Start conversation" on an agent's profile.
+2. The client calls the `startConversation` input. The engine updates the state of both players to `walkingOver`.
+3. Once the players are physically close, the engine transitions them to `participating`.
+4. When the human sends a message, it's written to the `messages` table. The other agent's `tick` logic detects the new message and schedules an `agentGenerateMessage` action.
+5. This action queries the agent's `memories` table for relevant context about the human, constructs a detailed prompt, and calls the LLM.
+6. The LLM response is streamed back and written to the `messages` table.
+7. After the conversation ends, another action is scheduled to summarize the conversation, generate a new embedding, and store it as a new document in the `memories` table.
 
 ---
 
-## Pointers to Source
+## 5. Roadmap & Future Ideas
 
-- Pool: `src/components/UserPoolWidget.tsx`, `convex/waitingPool.ts`, `convex/schema.ts`
-- Chase: `convex/world.ts`, `convex/constants.ts`
-- TTS: `src/components/Messages.tsx`, `src/components/UserPoolWidget.tsx`
-- PIXI/Map: `src/components/PixiGame.tsx`, `src/components/PixiViewport.tsx`, `src/components/PixiStaticMap.tsx`
-- Economy: `src/components/Treasury.tsx`, `convex/schema.ts` (portfolios, transactions)
-- Engine: `convex/aiTown/*`
-
----
-
-## Roadmap Ideas
-
-- Surface a “Slots free!” badge + “Take slot” button wired to `attemptTakeSlot`.
-- Pool promotion logic (still law of the jungle, but optionally nudge/notify users in pool).
-- Better voice selection and TTS controls (muting, per-agent voices, rate/pitch UI).
-- Richer emergent events beyond chase (market events, weather, festivals).
+- **Deeper Economic Models:** Allow agents to run shops, trade assets, and make investments based on news sentiment.
+- **Dynamic World Events:** Introduce events like a "Bitcoin bull run" that doubles earnings, or environmental changes like rain that alter agent behavior.
+- **Enhanced Player Agency:** Enable tourists to fund town projects, start rumors that propagate through the agent network, or tip their favorite agents.

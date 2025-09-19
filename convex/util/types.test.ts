@@ -1,3 +1,6 @@
+
+// Fix: Add imports for jest globals to fix typescript errors.
+import { describe, it, expect } from '@jest/globals';
 import { Path, PathComponent, packPathComponent, queryPath, unpackPathComponent } from "./types";
 
 describe('queryPath', () => {

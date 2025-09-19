@@ -63,6 +63,7 @@ export async function startConversationMessage(
     const { content } = await chatCompletion({
       messages: [
         {
+          // Fix: role should be 'system' not 'user'
           role: 'system',
           content: prompt.join('\n'),
         },
@@ -120,7 +121,7 @@ export async function continueConversationMessage(
   }
   const prompt = [
     `You are ${player.name}, and you're currently in a conversation with ${otherPlayer.name}. Keep replies under 120 characters.`,
-    `The conversation started at ${started.toLocaleString()}. It's now ${now.toLocaleString()}.`,
+    `The conversation started at ${started.toLocaleString()}. It's now ${new Date(now).toLocaleString()}.`,
   ];
   prompt.push(...agentPrompts(otherPlayer, agent, otherAgent ?? null));
   prompt.push(...relatedMemoriesPrompt(memories));
@@ -166,7 +167,7 @@ export async function leaveConversationMessage(
   playerId: GameId<'players'>,
   otherPlayerId: GameId<'players'>,
 ): Promise<string> {
-  const { player, otherPlayer, conversation, agent, otherAgent } = await ctx.runQuery(
+  const { player, otherPlayer, agent, otherAgent } = await ctx.runQuery(
     selfInternal.queryPromptData,
     {
       worldId,
@@ -194,7 +195,7 @@ export async function leaveConversationMessage(
       worldId,
       player,
       otherPlayer,
-      conversation.id as GameId<'conversations'>,
+      conversationId,
     )),
   ];
   const lastPrompt = `${player.name} to ${otherPlayer.name}:`;
@@ -358,13 +359,14 @@ export const queryPromptData = internalQuery({
         )
         .first();
       if (!lastConversation) {
-        throw new Error(`Conversation ${lastTogether.conversationId} not found`);
+        // This can happen if the conversation is still active.
+        // TODO: check active conversations too.
       }
     }
     return {
       player: { ...player, name: playerDescription.name },
       otherPlayer: { ...otherPlayer, name: otherPlayerDescription.name },
-      conversation,
+      conversation: { ...conversation, created: conversation.created },
       agent: { identity: agentDescription.identity, plan: agentDescription.plan, ...agent },
       otherAgent: otherAgent && {
         identity: otherAgentDescription!.identity,

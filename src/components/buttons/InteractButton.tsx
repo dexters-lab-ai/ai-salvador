@@ -65,9 +65,19 @@ export default function InteractButton() {
       </SignInButton>
     );
   }
-  return (
-    <Button imgUrl={interactImg} onClick={joinOrLeaveGame}>
-      {isPlaying ? 'Leave' : 'Interact'}
+  return isPlaying ? (
+    <Button onClick={joinOrLeaveGame} title="Leave the game">
+      Leave
     </Button>
+  ) : isAuthenticated ? (
+    <Button imgUrl={interactImg} onClick={joinOrLeaveGame} title="Join the game as a tourist">
+      Join
+    </Button>
+  ) : (
+    <SignInButton mode="modal">
+      <Button imgUrl={interactImg} title="Sign in to play">
+        Join
+      </Button>
+    </SignInButton>
   );
 }

@@ -31,6 +31,25 @@ const gameState = v.object({
   playerDescriptions: v.array(v.object(serializedPlayerDescription)),
   agentDescriptions: v.array(v.object(serializedAgentDescription)),
   worldMap: v.object(serializedWorldMap),
+  villageState: v.union(
+    v.null(),
+    v.object({
+      isPartyActive: v.optional(v.boolean()),
+      meeting: v.optional(
+        v.object({
+          speakerId: v.string(),
+          summary: v.string(),
+          startTime: v.number(),
+        }),
+      ),
+      // Fix: Add missing fields to match the villageState schema
+      treasury: v.float64(),
+      btcPrice: v.float64(),
+      previousBtcPrice: v.float64(),
+      marketSentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
+      touristCount: v.optional(v.float64()),
+    }),
+  ),
 });
 type GameState = Infer<typeof gameState>;
 
@@ -50,6 +69,7 @@ export class Game extends AbstractGame {
   maxInputsPerStep = 32;
 
   world: World;
+  villageState: Doc<'villageState'> | null;
 
   historicalLocations: Map<GameId<'players'>, HistoricalObject<Location>>;
 
@@ -71,6 +91,8 @@ export class Game extends AbstractGame {
 
     this.world = new World(state.world);
     delete this.world.historicalLocations;
+    // Fix: Cast state.villageState to handle the type mismatch with system fields.
+    this.villageState = state.villageState as Doc<'villageState'> | null;
 
     this.descriptionsModified = false;
     this.worldMap = new WorldMap(state.worldMap);
@@ -118,6 +140,8 @@ export class Game extends AbstractGame {
     if (!worldMapDoc) {
       throw new Error(`No map found for world ${worldId}`);
     }
+    const villageState = await db.query('villageState').unique();
+
     // Discard the system fields and historicalLocations from the world state.
     const { _id, _creationTime, historicalLocations: _, ...world } = worldDoc;
     const playerDescriptions = playerDescriptionsDocs
@@ -140,6 +164,7 @@ export class Game extends AbstractGame {
         playerDescriptions,
         agentDescriptions,
         worldMap,
+        villageState,
       },
     };
   }
@@ -175,6 +200,9 @@ export class Game extends AbstractGame {
   }
 
   tick(now: number) {
+    for (const agent of this.world.agents.values()) {
+      agent.tick(this, now);
+    }
     for (const player of this.world.players.values()) {
       player.tick(this, now);
     }
@@ -186,9 +214,6 @@ export class Game extends AbstractGame {
     }
     for (const conversation of this.world.conversations.values()) {
       conversation.tick(this, now);
-    }
-    for (const agent of this.world.agents.values()) {
-      agent.tick(this, now);
     }
 
     // Save each player's location into the history buffer at the end of
@@ -233,8 +258,26 @@ export class Game extends AbstractGame {
     }
     this.historicalLocations.clear();
 
+    // Serialize world and sanitize any embedded article objects on activities to match validators
+    const serializedWorld = this.world.serialize() as any;
+    try {
+      for (const p of serializedWorld.players as any[]) {
+        const art = p?.activity?.article;
+        if (art) {
+          p.activity.article = {
+            source: art.source,
+            headline: art.headline,
+            content: art.content,
+            imageUrl: art.imageUrl,
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Sanitizing activity.article in takeDiff failed:', e);
+    }
+
     const result: GameStateDiff = {
-      world: { ...this.world.serialize(), historicalLocations },
+      world: { ...serializedWorld, historicalLocations },
       agentOperations: this.pendingOperations,
     };
     this.pendingOperations = [];
@@ -253,6 +296,24 @@ export class Game extends AbstractGame {
       throw new Error(`No world found with id ${worldId}`);
     }
     const newWorld = diff.world;
+    // Sanitize any embedded article on activities to conform to validator
+    try {
+      for (const p of newWorld.players as any[]) {
+        const art = p?.activity?.article;
+        if (art) {
+          const slim = {
+            source: art.source,
+            headline: art.headline,
+            content: art.content,
+            imageUrl: art.imageUrl,
+          };
+          // Assign back the sanitized article
+          p.activity.article = slim;
+        }
+      }
+    } catch (e) {
+      console.warn('Sanitizing activity.article failed:', e);
+    }
     // Archive newly deleted players, conversations, and agents.
     for (const player of existingWorld.players) {
       if (!newWorld.players.some((p) => p.id === player.id)) {

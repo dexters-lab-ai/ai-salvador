@@ -1,3 +1,4 @@
+
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
@@ -20,6 +21,7 @@ export default function PlayerDetails({
   playerId,
   setSelectedElement,
   scrollViewRef,
+  isMeetingActive,
 }: {
   worldId: Id<'worlds'>;
   engineId: Id<'engines'>;
@@ -27,6 +29,7 @@ export default function PlayerDetails({
   playerId?: GameId<'players'>;
   setSelectedElement: SelectElement;
   scrollViewRef: React.RefObject<HTMLDivElement>;
+  isMeetingActive: boolean;
 }) {
   const humanPlayerDoc = useQuery(api.players.user, { worldId });
   const humanPlayer = humanPlayerDoc
@@ -42,7 +45,6 @@ export default function PlayerDetails({
   }
 
   const [challengeModalOpen, setChallengeModalOpen] = useState(false);
-  const [challengeBukeleModalOpen, setChallengeBukeleModalOpen] = useState(false);
   const player = playerId && game.world.players.get(playerId);
   const portfolio = useQuery(
     api.economy.getPortfolio,
@@ -62,16 +64,34 @@ export default function PlayerDetails({
   const rejectInvite = useSendInput(engineId, 'rejectInvite');
   const leaveConversation = useSendInput(engineId, 'leaveConversation');
 
-  if (!playerId) {
+  if (!playerId && !isMeetingActive) {
     return (
       <div className="h-full text-xl flex text-center items-center p-4">
         Click on an agent on the map to see chat history.
       </div>
     );
   }
+
+  if (isMeetingActive) {
+    return (
+      <Messages
+        worldId={worldId}
+        engineId={engineId}
+        inConversationWithMe={false}
+        conversation={{
+          kind: 'archived',
+          doc: { _id: 'meeting' } as any, // Dummy for meeting notes
+        }}
+        humanPlayer={humanPlayer}
+        scrollViewRef={scrollViewRef}
+        isMeetingActive={isMeetingActive}
+      />
+    );
+  }
   if (!player) {
     return null;
   }
+
   const isMe = humanPlayer && player.id === humanPlayer.id;
   const canInvite = !isMe && !playerConversation && humanPlayer && !humanConversation;
   const sameConversation =
@@ -83,11 +103,11 @@ export default function PlayerDetails({
 
   const humanStatus =
     humanPlayer && humanConversation && humanConversation.participants.get(humanPlayer.id)?.status;
-  const playerStatus = playerConversation && playerConversation.participants.get(playerId)?.status;
+  const playerStatus = playerConversation && playerId ? playerConversation.participants.get(playerId)?.status : undefined;
 
   const haveInvite = sameConversation && humanStatus?.kind === 'invited';
   const waitingForAccept =
-    sameConversation && playerConversation.participants.get(playerId)?.status.kind === 'invited';
+    sameConversation && playerId && playerConversation?.participants.get(playerId)?.status.kind === 'invited';
   const waitingForNearby =
     sameConversation && playerStatus?.kind === 'walkingOver' && humanStatus?.kind === 'walkingOver';
 
@@ -240,9 +260,17 @@ export default function PlayerDetails({
       )}
       {!playerConversation && player.activity && player.activity.until > Date.now() && (
         <div className="box flex-grow mt-6">
-          <h2 className="bg-brown-700 text-base sm:text-lg text-center">
+          <div className="bg-brown-700 text-base sm:text-lg text-center p-2">
             {player.activity.description}
-          </h2>
+          </div>
+          {player.activity.article && (
+            <div className="p-4 bg-brown-200 text-black">
+              <h3 className="font-bold font-display text-lg tracking-wide">{player.activity.article.headline}</h3>
+              <p className="text-xs text-gray-600 my-1">Source: {player.activity.article.source}</p>
+              {player.activity.article.imageUrl && <img src={player.activity.article.imageUrl} className="my-2 w-full rounded-sm shadow-lg" alt={player.activity.article.headline} />}
+              <p className="text-sm mt-2 leading-snug text-justify font-body">{player.activity.article.content}</p>
+            </div>
+          )}
         </div>
       )}
       {isBukele && (
@@ -275,6 +303,7 @@ export default function PlayerDetails({
           conversation={{ kind: 'active', doc: playerConversation }}
           humanPlayer={humanPlayer}
           scrollViewRef={scrollViewRef}
+          isMeetingActive={isMeetingActive}
         />
       )}
       {!playerConversation && previousConversation && (
@@ -289,6 +318,7 @@ export default function PlayerDetails({
             conversation={{ kind: 'archived', doc: previousConversation }}
             humanPlayer={humanPlayer}
             scrollViewRef={scrollViewRef}
+            isMeetingActive={isMeetingActive}
           />
         </>
       )}

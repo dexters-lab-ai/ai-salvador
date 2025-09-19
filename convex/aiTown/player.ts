@@ -1,3 +1,4 @@
+
 import { Infer, ObjectType, v } from 'convex/values';
 import { Point, Vector, path, point, vector } from '../util/types';
 import { GameId, parseGameId } from './ids';
@@ -35,10 +36,18 @@ const pathfinding = v.object({
 });
 export type Pathfinding = Infer<typeof pathfinding>;
 
+const article = v.object({
+  source: v.string(),
+  headline: v.string(),
+  content: v.string(),
+  imageUrl: v.optional(v.string()),
+});
+
 export const activity = v.object({
   description: v.string(),
   emoji: v.optional(v.string()),
   until: v.number(),
+  article: v.optional(article),
 });
 export type Activity = Infer<typeof activity>;
 

@@ -28,11 +28,14 @@ export const memoryFields = {
       relatedMemoryIds: v.array(v.id('memories')),
     }),
     v.object({
-      type: v.literal('observation')
+      type: v.literal('observation'),
     }),
     v.object({
       type: v.literal('marketSentiment'),
       sentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
+    }),
+    v.object({
+      type: v.literal('meeting'),
     }),
   ),
 };

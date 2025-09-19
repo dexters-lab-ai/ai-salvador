@@ -1,4 +1,6 @@
+
 import { query, mutation } from './_generated/server';
+import { v } from 'convex/values';
 import { newsArticles } from '../data/news';
 
 export const seedNews = mutation({
@@ -27,5 +29,25 @@ export const getRandomNewsArticle = query({
     }
     const randomIndex = Math.floor(Math.random() * allNews.length);
     return allNews[randomIndex];
+  },
+});
+
+export const addNewsArticle = mutation({
+  args: {
+    source: v.string(),
+    headline: v.string(),
+    content: v.string(),
+    imageUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // In a real app, you'd want to check for admin privileges here.
+    // const identity = await ctx.auth.getUserIdentity();
+    // if (identity?.tokenIdentifier !== "admin_user_identifier") {
+    //   throw new ConvexError("Not authorized to add news.");
+    // }
+    await ctx.db.insert('news', {
+      ...args,
+      timestamp: Date.now(),
+    });
   },
 });

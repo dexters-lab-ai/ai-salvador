@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { ActionCtx, DatabaseReader, internalAction, internalMutation, internalQuery, query } from '../_generated/server';
 import { Doc, Id } from '../_generated/dataModel';
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import { LLMMessage, chatCompletion, fetchEmbedding } from '../util/llm';
 import { asyncMap } from '../util/asyncMap';
 import { GameId, agentId, conversationId, playerId } from '../aiTown/ids';
@@ -73,14 +73,18 @@ export async function rememberConversation(
     conversationId,
   });
   const { player, otherPlayer } = data;
-  const messages = await ctx.runQuery(selfInternal.loadMessages, { worldId, conversationId });
+  const messages =
+    (await ctx.runQuery(api.messages.listMessages, {
+      worldId,
+      conversationId: conversationId as any,
+    })) || [];
   if (!messages.length) {
     return;
   }
 
   const llmMessages: LLMMessage[] = [
     {
-      role: 'user',
+      role: 'system',
       content: `You are ${player.name}, and you just finished a conversation with ${otherPlayer.name}. I would
       like you to summarize the conversation from ${player.name}'s perspective, using first-person pronouns like
       "I," and add if you liked or disliked this interaction.`,
@@ -96,7 +100,7 @@ export async function rememberConversation(
       content: `${author.name} to ${recipient.name}: ${message.text}`,
     });
   }
-  llmMessages.push({ role: 'user', content: 'Summary:' });
+  llmMessages.push({ role: 'user', content: `Please provide a summary of the conversation from ${player.name}'s perspective.` });
   const { content } = await chatCompletion({
     messages: llmMessages,
     max_tokens: 500,
@@ -241,7 +245,7 @@ export const rankAndTouchMemories = internalMutation({
 
     // TODO: fetch <count> recent memories and <count> important memories
     // so we don't miss them in case they were a little less relevant.
-    const recencyScore = relatedMemories.map((memory) => {
+    const recencyScore = relatedMemories.map((memory: Doc<'memories'>) => {
       const hoursSinceAccess = (ts - memory.lastAccess) / 1000 / 60 / 60;
       return 0.99 ** Math.floor(hoursSinceAccess);
     });
@@ -257,7 +261,7 @@ export const rankAndTouchMemories = internalMutation({
     }));
     memoryScores.sort((a, b) => b.overallScore - a.overallScore);
     const accessed = memoryScores.slice(0, args.n);
-    await asyncMap(accessed, async ({ memory }) => {
+    await asyncMap(accessed, async ({ memory }: { memory: Doc<'memories'> }) => {
       if (memory.lastAccess < ts - MEMORY_ACCESS_THROTTLE) {
         await ctx.db.patch(memory._id, { lastAccess: ts });
       }
@@ -375,10 +379,10 @@ async function reflectOnMemories(
     },
   );
 
-  // should only reflect if lastest 100 items have importance score of >500
+  // should only reflect if latest 100 items have importance score of >500
   const sumOfImportanceScore = memories
-    .filter((m) => m._creationTime > (lastReflectionTs ?? 0))
-    .reduce((acc, curr) => acc + curr.importance, 0);
+    .filter((m: Doc<'memories'>) => m._creationTime > (lastReflectionTs ?? 0))
+    .reduce((acc: number, curr: Doc<'memories'>) => acc + curr.importance, 0);
   const shouldReflect = sumOfImportanceScore > 500;
 
   if (!shouldReflect) {
@@ -387,7 +391,7 @@ async function reflectOnMemories(
   console.debug('sum of importance score = ', sumOfImportanceScore);
   console.debug('Reflecting...');
   const prompt = ['[no prose]', '[Output only JSON]', `You are ${name}, statements about you:`];
-  memories.forEach((m, idx) => {
+  memories.forEach((m: Doc<'memories'>, idx: number) => {
     prompt.push(`Statement ${idx}: ${m.description}`);
   });
   prompt.push('What 3 high-level insights can you infer from the above statements?');

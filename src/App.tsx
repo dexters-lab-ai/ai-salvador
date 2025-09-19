@@ -1,41 +1,168 @@
-import Game from './components/Game.tsx';
 
+import Game from './components/Game.tsx';
 import { ToastContainer } from 'react-toastify';
 import a16zImg from '../assets/a16z.png';
-import convexImg from '../assets/convex.svg';
-import starImg from '../assets/star.svg';
+import shareImg from '../assets/share.svg';
 import helpImg from '../assets/help.svg';
-// import { UserButton } from '@clerk/clerk-react';
-// import { Authenticated, Unauthenticated } from 'convex/react';
-// import LoginButton from './components/buttons/LoginButton.tsx';
-import { useState } from 'react';
+import infoImg from '../assets/info.svg';
+import closeImg from '../assets/close.svg';
+import { useState, useEffect, useRef } from 'react';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
-import type { CSSProperties } from 'react';
 import MusicButton from './components/buttons/MusicButton.tsx';
 import LandingCredits from './components/LandingCredits.tsx';
 import Button from './components/buttons/Button.tsx';
 import InteractButton from './components/buttons/InteractButton.tsx';
-import FreezeButton from './components/FreezeButton.tsx';
 import Treasury from './components/Treasury.tsx';
 import UserPoolWidget from './components/UserPoolWidget.tsx';
 import { HustleModal } from './components/HustleModal.tsx';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { MAX_HUMAN_PLAYERS } from './shared/constants.ts';
+import { ShareModal } from './components/ShareModal.tsx';
+import { useServerGame } from './hooks/serverGame.ts';
+import { AboutModal } from './components/AboutModal.tsx';
+import { AddNewsModal } from './components/AddNewsModal.tsx';
+import clsx from 'clsx';
+import { PendingTweetsModal } from './components/PendingTweetsModal.tsx';
 
-type HelpTab = 'nav' | 'tourist' | 'interact' | 'movement' | 'economy' | 'tips' | 'limits';
+type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
+
+const modalStyles: Styles = {
+  overlay: {
+    backgroundColor: 'rgb(0, 0, 0, 75%)',
+    zIndex: 12,
+  },
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    maxWidth: '56%',
+    maxHeight: '80vh',
+    overflowY: 'auto',
+    border: '10px solid rgb(23, 20, 33)',
+    borderRadius: '0',
+    background: 'rgb(35, 38, 58)',
+    color: 'white',
+    fontFamily: '"Upheaval Pro", "sans-serif"',
+  },
+};
+
+const SocialFeedModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const socialFeed = useQuery(api.world.getSocialFeed);
+
+  return (
+    <ReactModal
+      isOpen={isOpen}
+      onRequestClose={onClose}
+      style={modalStyles} // reuse styles from Home component
+      contentLabel="Social Feed Modal"
+      ariaHideApp={false}
+    >
+      <div className="font-body">
+        <h1 className="text-center text-5xl font-bold font-display game-title">Social Feed</h1>
+        <button onClick={onClose} className="absolute top-4 right-4"><img src={closeImg} className="w-6 h-6" /></button>
+        <div className="mt-4 overflow-y-auto max-h-[60vh] custom-scroll p-2">
+          {!socialFeed ? (
+            <p>Loading feed...</p>
+          ) : socialFeed.length === 0 ? (
+            <p className="text-center p-4">No tweets yet. It's quiet in AI Salvador!</p>
+          ) : (
+            socialFeed.map((tweet) => (
+              <div key={tweet._id.toString()} className="leading-tight mb-6">
+                <div className="flex gap-4 items-baseline">
+                  <span className="uppercase flex-grow font-bold">{tweet.authorName}</span>
+                  <time dateTime={tweet._creationTime.toString()} className="text-xs text-white/70">
+                    {new Date(tweet._creationTime).toLocaleString()}
+                  </time>
+                </div>
+                <div className={clsx('bubble')}>
+                  <p className="bg-white -mx-3 -my-1 text-black">{tweet.text}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </ReactModal>
+  );
+};
 
 export default function Home() {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
-  const [helpTab, setHelpTab] = useState<HelpTab>('nav');
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [addNewsModalOpen, setAddNewsModalOpen] = useState(false);
+  const [socialModalOpen, setSocialModalOpen] = useState(false);
+  const [pendingTweetsModalOpen, setPendingTweetsModalOpen] = useState(false);
+  const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [helpTab, setHelpTab] = useState<HelpTab>('intro');
   const [isExpanded, setIsExpanded] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [showCredits, setShowCredits] = useState(true);
   const worldStatus = useQuery(api.world.defaultWorldStatus);
+  const worldId = worldStatus?.worldId;
+  const game = useServerGame(worldId);
   const userPlayer = useQuery(api.players.user, worldStatus ? { worldId: worldStatus.worldId } : 'skip');
   const triggerChase = useMutation(api.world.triggerChase);
+  const gatherAll = useMutation(api.world.gatherAll);
+  const triggerParty = useMutation(api.world.triggerParty);
+  const stopParty = useMutation(api.world.stopParty);
   const isAdmin = (import.meta as any).env?.VITE_ADMIN === '1';
+
+  const villageState = useQuery(api.world.villageState, {});
+  const isPartyActive = villageState?.isPartyActive ?? false;
+
+  const [isChaseActive, setIsChaseActive] = useState(false);
+  const [isMeetingActive, setIsMeetingActive] = useState(false);
+  const chaseAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!game) return;
+    const chaseInProgress = [...game.world.players.values()].some(
+      (p) =>
+        p.activity?.description.includes('Chase MS-13') ||
+        p.activity?.description.includes('Run for border'),
+    );
+    setIsChaseActive(chaseInProgress);
+
+    const meetingInProgress = !!villageState?.meeting;
+    setIsMeetingActive(meetingInProgress);
+  }, [game, villageState]);
+
+  useEffect(() => {
+    if (isChaseActive) {
+      if (!chaseAudioRef.current) {
+        const audio = new Audio('/assets/narcos.wav');
+        audio.loop = true;
+        chaseAudioRef.current = audio;
+      }
+      chaseAudioRef.current.play().catch(console.error);
+    } else {
+      chaseAudioRef.current?.pause();
+    }
+    return () => {
+      chaseAudioRef.current?.pause();
+    };
+  }, [isChaseActive]);
+
+  const handleShare = async () => {
+    try {
+      const canvas = document.querySelector('.game-frame canvas') as HTMLCanvasElement;
+      if (canvas) {
+        const url = canvas.toDataURL('image/png');
+        setScreenshotUrl(url);
+        setShareModalOpen(true);
+      } else {
+        console.error('Game canvas not found.');
+      }
+    } catch (error) {
+      console.error('Failed to capture screenshot:', error);
+    }
+  };
 
   if (!gameStarted) {
     return (
@@ -71,7 +198,25 @@ export default function Home() {
             </h2>
           </div>
           {showCredits ? (
-            <LandingCredits inline durationMs={9000} onDone={() => setShowCredits(false)} />
+            <div className="relative">
+              <LandingCredits inline durationMs={9000} onDone={() => setShowCredits(false)} />
+              <button 
+                onClick={() => {
+                  setShowCredits(false);
+                  // Force stop any running animations or audio
+                  if (typeof window !== 'undefined') {
+                    const audioElements = document.getElementsByTagName('audio');
+                    for (let i = 0; i < audioElements.length; i++) {
+                      audioElements[i].pause();
+                      audioElements[i].currentTime = 0;
+                    }
+                  }
+                }}
+                className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-50 bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-md transition-colors text-lg"
+              >
+                Skip Intro
+              </button>
+            </div>
           ) : (
             <>
               <p className="mt-5 sm:mt-6 text-lg sm:text-xl md:text-2xl max-w-md md:max-w-2xl lg:max-w-3xl mx-auto leading-snug text-white/95 shadow-solid scale-hover">
@@ -98,19 +243,17 @@ export default function Home() {
       >
         <div className="font-body">
           <h1 className="text-center text-5xl sm:text-6xl font-bold font-display game-title">How to Play</h1>
-          <p className="opacity-90 mt-2">
-            Welcome to AI Salvador! Explore as a spectator or jump in as a tourist to interact with AI agents.
-          </p>
-
+          
           <div className="mt-4 flex flex-wrap gap-2 border-b border-brown-700 pb-2">
             {([
+              { id: 'intro', label: 'Welcome!' },
               { id: 'nav', label: 'Navigation' },
-              { id: 'tourist', label: 'Tourist' },
-              { id: 'interact', label: 'Interact' },
-              { id: 'movement', label: 'Movement' },
+              { id: 'tourist', label: 'Being a Tourist' },
+              { id: 'interact', label: 'Interaction' },
               { id: 'economy', label: 'Economy' },
-              { id: 'tips', label: 'Tips' },
-              { id: 'limits', label: 'Limits' },
+              { id: 'events', label: 'World Events' },
+              { id: 'tips', label: 'Pro Tips' },
+              { id: 'limits', label: 'Rules' },
             ] as { id: HelpTab; label: string }[]).map((t) => (
               <button
                 key={t.id}
@@ -124,79 +267,104 @@ export default function Home() {
             ))}
           </div>
 
+          {helpTab === 'intro' && (
+            <section className="mt-4">
+              <h2 className="text-3xl">Welcome to AI Salvador!</h2>
+              <p className='mt-2'>This is a virtual town where AI characters live, chat, and socialize. You can explore as a spectator or jump in as a tourist to interact with the AI agents and influence the town's story.</p>
+            </section>
+          )}
           {helpTab === 'nav' && (
             <section className="mt-4">
-              <h2 className="text-3xl">Navigation</h2>
+              <h2 className="text-3xl">Getting Around</h2>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li>Click and drag to pan the map.</li>
-                <li>Scroll to zoom in/out.</li>
-                <li>Click a character to open their profile and chat history.</li>
+                <li><b>Pan:</b> Click and drag the map to move your view.</li>
+                <li><b>Zoom:</b> Use your mouse wheel or trackpad to zoom in and out.</li>
+                <li><b>Follow an Agent:</b> Click any character to open their profile, see their thoughts, and view their chat history.</li>
               </ul>
             </section>
           )}
           {helpTab === 'tourist' && (
             <section className="mt-4">
-              <h2 className="text-3xl">Playing as a Tourist</h2>
-              <p className="mt-2">
-                Click <b>Interact</b> to join. You get a character and some free BTC to explore and chat.
-              </p>
+              <h2 className="text-3xl">Being a Tourist</h2>
+              <ul className="list-disc pl-6 mt-2 space-y-1">
+                <li>Click the <b>Interact</b> button to join the game as a human tourist.</li>
+                <li>You'll be assigned a random character and given some free BTC to start your adventure.</li>
+                <li><b>Move:</b> Click any open spot on the map to see a path preview, then click again to confirm and walk there.</li>
+                <li>You can change your destination at any time, even while walking.</li>
+              </ul>
             </section>
           )}
           {helpTab === 'interact' && (
             <section className="mt-4">
               <h2 className="text-3xl">Interacting with Agents</h2>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li>Select an agent and click <b>Start conversation</b>. They’ll walk over to you.</li>
-                <li>If they’re busy, they’ll accept once free. Humans are prioritized.</li>
-                <li>Type your message and press Enter during the conversation.</li>
-              </ul>
-            </section>
-          )}
-          {helpTab === 'movement' && (
-            <section className="mt-4">
-              <h2 className="text-3xl">Moving Your Tourist</h2>
-              <p className="mt-2">After clicking <b>Interact</b>:</p>
-              <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li>Click any reachable tile to preview a path; click again to confirm and walk.</li>
-                <li>You can choose a new destination at any time while walking.</li>
+                <li>To chat, click on an agent and select <b>"Start conversation"</b>. They will walk over to you.</li>
+                <li>If an agent is busy, they'll accept your invitation once they are free. They always prioritize talking to humans!</li>
+                <li>Once in a conversation, type your message and press Enter. You can also use the microphone icon for voice-to-text input.</li>
               </ul>
             </section>
           )}
           {helpTab === 'economy' && (
             <section className="mt-4">
-              <h2 className="text-3xl">Town Economy</h2>
-              <p className="mt-2">AI Salvador's economy is driven by tourism and agent interactions:</p>
+              <h2 className="text-3xl">The Town Economy</h2>
+              <p className="mt-2">AI Salvador's economy is dynamic and driven by BTC:</p>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li><b>Tourist Tax:</b> A small, random amount of BTC is deducted as a tourist tax when you join the game. This contributes to the town treasury.</li>
-                <li><b>Agent Earnings:</b> Agents (MCPs) earn BTC by talking to tourists and helping them. You can see their earnings on their profiles.</li>
-                <li><b>President Bukele:</b> He holds the town's main BTC wallets. Challenge him to a game to win some BTC!</li>
-                <li><b>MS-13 Protection Fee:</b> The MS-13 agent sometimes charges a 10% protection fee to other MCP agents during chats. You'll see green/red BTC popups when that happens.</li>
-                <li><b>Border Tunnel Outcome:</b> When ICE and MS-13 reach the border tunnel, MS-13 bribes ICE and <i>all</i> MS-13 funds transfer to ICE. Later, when ICE meets President Bukele, ICE hands over all collected funds to the government.</li>
+                <li><b>Town Treasury:</b> The treasury, held by President Bukele, grows from tourist taxes and other activities. Its value fluctuates with the simulated BTC price.</li>
+                <li><b>Tourist Tax:</b> When you join as a tourist, a small, random fee is paid to the town treasury.</li>
+                <li><b>Agent Earnings:</b> Agents earn BTC by chatting with tourists. Some agents have... other ways of making BTC.</li>
+                <li><b>MS-13 Protection Fee:</b> This agent may extort a 10% "protection fee" from other AI agents during conversations.</li>
+              </ul>
+            </section>
+          )}
+          {helpTab === 'events' && (
+            <section className="mt-4">
+              <h2 className="text-3xl">World Events</h2>
+              <p className="mt-2">The town is alive with emergent events:</p>
+              <ul className="list-disc pl-6 mt-2 space-y-1">
+                  <li><b>Cops & Robbers:</b> When ICE (the cop) and MS-13 (the robber) chat, a chase might begin! If ICE asks for ID, MS-13 will flee to the border tunnel with ICE in hot pursuit. The chase resolves with a transfer of all of MS-13's BTC to ICE.</li>
+                  <li><b>Town Meetings:</b> President Bukele can call a town meeting, gathering all agents to discuss the town's economic status. You'll see his speech summary appear above his head.</li>
+                  <li><b>Parties:</b> An admin can trigger a town-wide party! All agents will gather to dance, the music changes, and special effects turn on. At the end, all agents transfer their earnings to the president.</li>
               </ul>
             </section>
           )}
           {helpTab === 'tips' && (
             <section className="mt-4">
-              <h2 className="text-3xl">Tips</h2>
+              <h2 className="text-3xl">Pro Tips</h2>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li>Keep replies short and clear for better responses.</li>
-                <li>If an agent’s busy, try again shortly—they won’t accept new invites mid-chat.</li>
-                <li>BTC flows during chats. Watch the <b>Treasury</b> panel for the town’s economy.</li>
-                <li><b>ICE vs MS-13:</b> ICE patrols and asks about MS-13. If they meet, MS-13 shows “Run for border…” and ICE shows “Chase MS-13…”, then both head to the border tunnel. Upon arrival, MS-13 bribes ICE (MS-13 funds transfer to ICE). ICE later hands all seized funds to President Bukele during meetings.</li>
+                <li>Keep your chat replies short and to the point for the best AI responses.</li>
+                <li>If an agent is busy, they won’t accept new invites. Check their profile to see what they're up to.</li>
+                <li>Watch the floating text above agents to see BTC transactions happen in real-time!</li>
+                <li>Check the news articles in an agent's profile when they're "reading the news" to see what's influencing their mood.</li>
               </ul>
             </section>
           )}
           {helpTab === 'limits' && (
             <section className="mt-4">
-              <h2 className="text-3xl">Limits & Timeouts</h2>
+              <h2 className="text-3xl">Rules & Limits</h2>
               <ul className="list-disc pl-6 mt-2 space-y-1">
-                <li>Up to {MAX_HUMAN_PLAYERS} humans can join.</li>
-                <li>Idle players may be removed to free slots for others.</li>
+                <li>A maximum of {MAX_HUMAN_PLAYERS} human players can be in the town at once.</li>
+                <li>If the town is full, you can join the waiting pool to be notified when a slot opens up.</li>
+                <li>Idle players may be removed after a period of inactivity to make room for others.</li>
               </ul>
             </section>
           )}
         </div>
       </ReactModal>
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        screenshotUrl={screenshotUrl}
+      />
+      <AboutModal isOpen={aboutModalOpen} onClose={() => setAboutModalOpen(false)} />
+      <AddNewsModal isOpen={addNewsModalOpen} onClose={() => setAddNewsModalOpen(false)} />
+      <SocialFeedModal isOpen={socialModalOpen} onClose={() => setSocialModalOpen(false)} />
+      {worldId && (
+        <PendingTweetsModal
+          isOpen={pendingTweetsModalOpen}
+          onClose={() => setPendingTweetsModalOpen(false)}
+          worldId={worldId}
+        />
+      )}
 
       <div className="w-full flex-grow flex flex-col items-center justify-start p-1">
         {!isExpanded && <UserPoolWidget />}
@@ -219,7 +387,13 @@ export default function Home() {
               : 'w-full flex-grow relative flex items-center justify-center max-h-[800px]'
           }
         >
-          <Game isExpanded={isExpanded} setIsExpanded={setIsExpanded} />
+          <Game
+            isExpanded={isExpanded}
+            setIsExpanded={setIsExpanded}
+            isChaseActive={isChaseActive}
+            isMeetingActive={isMeetingActive}
+            isPartyActive={isPartyActive}
+          />
         </div>
       </div>
 
@@ -231,22 +405,62 @@ export default function Home() {
         }
       >
         <div className="flex gap-4 flex-grow max-w-[1200px] items-center justify-center pointer-events-none">
-          <FreezeButton />
-          <MusicButton />
-          <Button href="https://twitter.com/intent/tweet?text=Playing%20AI%20Salvador%20%23AITown" title="Share on Twitter / X">
-            Twitter
+          <MusicButton isChaseActive={isChaseActive} isPartyActive={isPartyActive} />
+          <Button imgUrl={shareImg} onClick={handleShare} title="Share">
+            Share
           </Button>
           <InteractButton />
+          <Button onClick={() => setSocialModalOpen(true)} title="View the town's social media feed">
+            Social 🐦
+          </Button>
           <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>
+          <Button imgUrl={infoImg} onClick={() => setAboutModalOpen(true)}>
+            About
+          </Button>
           {isAdmin && worldStatus && (
-            <Button
-              onClick={() => triggerChase({ worldId: worldStatus.worldId })}
-              title="Trigger ICE vs MS-13 cave chase"
-            >
-              Trigger Chase 🚨
-            </Button>
+            <>
+              <Button
+                onClick={() => triggerChase({ worldId: worldStatus.worldId })}
+                title="Trigger ICE vs MS-13 chase"
+                className={isChaseActive ? 'opacity-50 cursor-not-allowed' : ''}
+              >
+                Chase 🚨
+              </Button>
+              <Button
+                onClick={() => gatherAll({ worldId: worldStatus.worldId })}
+                title="Gather all agents for a town meeting"
+                className={isMeetingActive ? 'opacity-50 cursor-not-allowed' : ''}
+              >
+                Meeting 🧑‍🏫
+              </Button>
+              {isPartyActive ? (
+                <Button
+                  onClick={() => stopParty({ worldId: worldStatus.worldId })}
+                  title="End the current party"
+                  className={'bg-red-500 hover:bg-red-600'}
+                >
+                  Stop 🎉
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => triggerParty({ worldId: worldStatus.worldId })}
+                  title="Gather all agents for a party"
+                >
+                  Party! 🎉
+                </Button>
+              )}
+              <Button
+                onClick={() => setAddNewsModalOpen(true)}
+                title="Add news article"
+              >
+                News 📰
+              </Button>
+               <Button onClick={() => setPendingTweetsModalOpen(true)} title="Review pending tweets">
+                Tweets 审批
+              </Button>
+            </>
           )}
         </div>
         <Treasury compact={isExpanded} />
@@ -260,27 +474,3 @@ export default function Home() {
     </main>
   );
 }
-
-const modalStyles: Styles = {
-  overlay: {
-    backgroundColor: 'rgb(0, 0, 0, 75%)',
-    zIndex: 12,
-  },
-  content: {
-    top: '50%',
-    left: '50%',
-    right: 'auto',
-    bottom: 'auto',
-    marginRight: '-50%',
-    transform: 'translate(-50%, -50%)',
-    maxWidth: '56%',
-    maxHeight: '80vh',
-    overflowY: 'auto' as CSSProperties['overflowY'],
-
-    border: '10px solid rgb(23, 20, 33)',
-    borderRadius: '0',
-    background: 'rgb(35, 38, 58)',
-    color: 'white',
-    fontFamily: '"Upheaval Pro", "sans-serif"',
-  },
-};

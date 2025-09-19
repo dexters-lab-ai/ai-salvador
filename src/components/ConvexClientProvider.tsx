@@ -10,7 +10,8 @@ import { useAuth } from '@clerk/clerk-react';
  * We use localStorage so that individual users stay on the same instance.
  */
 function convexUrl(): string {
-  const url = import.meta.env.VITE_CONVEX_URL as string;
+  // Fix: Cast `import.meta` to `any` to access `env`.
+  const url = (import.meta as any).env.VITE_CONVEX_URL as string;
   if (!url) {
     throw new Error('Couldn’t find the Convex deployment URL.');
   }

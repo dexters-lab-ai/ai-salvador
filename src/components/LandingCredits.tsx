@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Descriptions, characters as CharacterSheets } from '../../data/characters';
@@ -22,7 +23,10 @@ function pickBlurb(identity: string, max = 90) {
   return oneLine.length > max ? oneLine.slice(0, max - 1) + '…' : oneLine;
 }
 
-export default function LandingCredits({ durationMs = 9000, onDone, inline = false }: Props) {
+// Each character will be shown for 3.5 seconds (3500ms)
+const CHARACTER_DISPLAY_MS = 3500;
+
+export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, onDone, inline = false }: Props) {
   const cast = useMemo(() => {
     const priority = ['President Bukele', 'ICE', 'MS-13', 'Alex', 'Lucky'];
     const map = new Map(Descriptions.map((d) => [d.name, d] as const));
@@ -39,60 +43,126 @@ export default function LandingCredits({ durationMs = 9000, onDone, inline = fal
 
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+  const [audioError, setAudioError] = useState<Error | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeTimer = useRef<number | null>(null);
 
+// Fix: Refactor useEffect to correctly handle audio playback, event listeners, and cleanup.
   useEffect(() => {
-    const stepMs = Math.max(1400, Math.floor(durationMs / Math.max(1, cast.length)));
-    const iv = setInterval(() => setIndex((i) => (i + 1) % cast.length), stepMs);
-    const timeout = setTimeout(() => {
-      setVisible(false);
+    if (cast.length === 0) {
       onDone?.();
-      clearInterval(iv);
-    }, durationMs);
+      return;
+    }
 
-    // Music: fade in quickly, fade out at end; credits-only
-    const el = new Audio('/assets/background.ogg');
-    el.volume = 0;
-    el.loop = true;
-    audioRef.current = el;
-    el.play().catch(() => {});
-    const fade = (target: number, ms: number) => {
-      const start = performance.now();
-      const init = el.volume;
-      const diff = target - init;
-      const step = (t: number) => {
-        const progress = Math.min(1, (t - start) / ms);
-        el.volume = Math.max(0, Math.min(1, init + diff * progress));
+    setIndex(0);
+    setVisible(true);
+
+    const CHARACTER_DISPLAY_MS_INTERNAL = 5000;
+    const AUDIO_MIN_DURATION = 20000;
+    const FADE_OUT_MS = 2000;
+    const FADE_IN_MS = 2000;
+
+    let isMounted = true;
+    // Fix: Cannot find namespace 'NodeJS'.
+    let characterInterval: ReturnType<typeof setInterval> | null = null;
+    let endTimeout: ReturnType<typeof setTimeout> | null = null;
+    let fadeOutTimeout: ReturnType<typeof setTimeout> | null = null;
+    let currentIndex = 0;
+
+    const showNextCharacter = () => {
+      if (!isMounted) return;
+      currentIndex++;
+      if (currentIndex < cast.length) {
+        setIndex(currentIndex);
+      } else if (characterInterval) {
+        clearInterval(characterInterval);
+      }
+    };
+
+    if (cast.length > 1) {
+      characterInterval = setInterval(showNextCharacter, CHARACTER_DISPLAY_MS_INTERNAL);
+    }
+
+    const totalCharactersTime = cast.length * CHARACTER_DISPLAY_MS_INTERNAL;
+    const totalDuration = Math.max(totalCharactersTime, AUDIO_MIN_DURATION);
+
+    endTimeout = setTimeout(() => {
+      if (!isMounted) return;
+      setVisible(false);
+      if (characterInterval) clearInterval(characterInterval);
+      setTimeout(() => {
+        if (isMounted) onDone?.();
+      }, 1000);
+    }, totalDuration);
+
+    const fade = (target: number, duration: number) => {
+      if (!audioRef.current) return;
+      const audio = audioRef.current;
+      const startVolume = audio.volume;
+      const delta = target - startVolume;
+      let startTime: number | null = null;
+
+      const fadeStep = (timestamp: number) => {
+        if (!isMounted || !audioRef.current) return;
+        if (startTime === null) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        audio.volume = Math.max(0, Math.min(1, startVolume + delta * progress));
         if (progress < 1) {
-          fadeTimer.current = requestAnimationFrame(step);
+          fadeTimer.current = requestAnimationFrame(fadeStep);
+        } else {
+          if (target === 0) {
+            audio.pause();
+            audio.currentTime = 0;
+          }
         }
       };
-      fadeTimer.current = requestAnimationFrame(step);
+      if (fadeTimer.current) cancelAnimationFrame(fadeTimer.current);
+      fadeTimer.current = requestAnimationFrame(fadeStep);
     };
-    fade(0.24, 1500);
 
-    const fadeOutAt = setTimeout(() => {
-      fade(0, 1000);
-      setTimeout(() => {
-        el.pause();
-        el.currentTime = 0;
-      }, 1100);
-    }, Math.max(0, durationMs - 1300));
+    const handleAudioError = (error: Event | string) => {
+      if (!isMounted) return;
+      console.error('Audio error:', error);
+      setAudioError(new Error(typeof error === 'string' ? error : 'Audio playback failed'));
+      setAudioLoaded(true);
+    };
+
+    const handleCanPlay = () => {
+      if (!isMounted || !audioRef.current) return;
+      setAudioLoaded(true);
+      audioRef.current.play().catch(handleAudioError);
+      fade(0.7, FADE_IN_MS);
+    };
+
+    const audio = new Audio(`${((import.meta as any).env.BASE_URL || '').replace(/\/+$/, '')}/assets/narcos.wav`);
+    audio.loop = true;
+    audio.volume = 0;
+    audio.preload = 'auto';
+    audio.addEventListener('canplaythrough', handleCanPlay, { once: true });
+    audio.addEventListener('error', handleAudioError);
+    audioRef.current = audio;
+    audio.load();
+
+    fadeOutTimeout = setTimeout(() => {
+      if (isMounted) fade(0, FADE_OUT_MS);
+    }, totalDuration - FADE_OUT_MS);
 
     return () => {
-      clearInterval(iv);
-      clearTimeout(timeout);
-      clearTimeout(fadeOutAt);
+      isMounted = false;
+      if (characterInterval) clearInterval(characterInterval);
+      if (endTimeout) clearTimeout(endTimeout);
+      if (fadeOutTimeout) clearTimeout(fadeOutTimeout);
       if (fadeTimer.current) cancelAnimationFrame(fadeTimer.current);
       if (audioRef.current) {
-        try {
-          audioRef.current.pause();
-        } catch {}
+        audioRef.current.removeEventListener('canplaythrough', handleCanPlay);
+        audioRef.current.removeEventListener('error', handleAudioError);
+        audioRef.current.pause();
         audioRef.current = null;
       }
     };
-  }, [cast.length, durationMs, onDone]);
+  }, [cast.length, onDone]);
 
   const current = cast[index];
   const sheet = useMemo(() => {
@@ -116,6 +186,40 @@ export default function LandingCredits({ durationMs = 9000, onDone, inline = fal
   }, [sheet]);
 
   if (!visible) return null;
+
+  if (!inline) {
+    if (cast.length === 0) {
+      return null; // Don't render anything if no cast members
+    }
+
+    return (
+      <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center z-50">
+        {!audioLoaded && !audioError && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white text-lg">Loading...</div>
+          </div>
+        )}
+        {audioError && (
+          <div className="absolute top-4 right-4 text-red-400 text-sm bg-black/50 p-2 rounded">
+            Audio error: {audioError.message}
+          </div>
+        )}
+        {visible && cast[index] && (
+          <div className="text-center px-4 max-w-2xl animate-fadeIn">
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white mb-6 transition-opacity duration-500">
+              {cast[index].name}
+            </h2>
+            <p className="text-xl sm:text-2xl text-white/80 mb-8 transition-opacity duration-500">
+              {cast[index].blurb}
+            </p>
+            <div className="text-6xl transition-transform duration-500 hover:scale-110">
+              {cast[index].emoji}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

@@ -1,17 +1,24 @@
 import { v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { insertInput } from './aiTown/insertInput';
 import { conversationId, playerId } from './aiTown/ids';
 
 export const listMessages = query({
   args: {
     worldId: v.id('worlds'),
-    conversationId,
+    conversationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (!args.conversationId) {
+      return [];
+    }
     const messages = await ctx.db
       .query('messages')
-      .withIndex('conversationId', (q) => q.eq('worldId', args.worldId).eq('conversationId', args.conversationId))
+      .withIndex('conversationId', (q) => {
+        // Type assertion to ensure conversationId is treated as string
+        const conversationId = args.conversationId as string;
+        return q.eq('worldId', args.worldId).eq('conversationId', conversationId);
+      })
       .collect();
     const out = [];
     for (const message of messages) {
@@ -48,6 +55,36 @@ export const writeMessage = mutation({
       conversationId: args.conversationId,
       playerId: args.playerId,
       timestamp: Date.now(),
+    });
+  },
+});
+
+export const agentWriteMessage = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    conversationId,
+    messageUuid: v.string(),
+    playerId,
+    text: v.string(),
+    // for agentFinishSendingMessage
+    agentId: v.string(),
+    leaveConversation: v.boolean(),
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert('messages', {
+      conversationId: args.conversationId,
+      author: args.playerId,
+      messageUuid: args.messageUuid,
+      text: args.text,
+      worldId: args.worldId,
+    });
+    await insertInput(ctx, args.worldId, 'agentFinishSendingMessage', {
+      conversationId: args.conversationId,
+      agentId: args.agentId,
+      timestamp: Date.now(),
+      operationId: args.operationId,
+      leaveConversation: args.leaveConversation,
     });
   },
 });

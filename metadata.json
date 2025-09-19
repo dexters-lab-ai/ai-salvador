@@ -1,0 +1,7 @@
+{
+  "name": "AI Salvador",
+  "description": "A virtual town where AI characters live, chat, socialize, hustle, HODL and party",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

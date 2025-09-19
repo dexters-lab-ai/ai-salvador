@@ -1,4 +1,6 @@
-import { BaseTexture, ISpritesheetData, Spritesheet } from 'pixi.js';
+
+import { Spritesheet } from 'pixi.js';
+import type { SpritesheetData } from '../../data/spritesheets/types';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatedSprite, Container, Graphics, Text } from '@pixi/react';
 import * as PIXI from 'pixi.js';
@@ -12,6 +14,7 @@ export const Character = ({
   isMoving = false,
   isThinking = false,
   isSpeaking = false,
+  isDancing = false,
   emoji = '',
   isViewer = false,
   speed = 0.1,
@@ -21,7 +24,7 @@ export const Character = ({
   // Path to the texture packed image.
   textureUrl: string;
   // The data for the spritesheet.
-  spritesheetData: ISpritesheetData;
+  spritesheetData: SpritesheetData;
   // The pose of the NPC.
   x: number;
   y: number;
@@ -31,6 +34,7 @@ export const Character = ({
   isThinking?: boolean;
   // Shows a speech bubble if true.
   isSpeaking?: boolean;
+  isDancing?: boolean;
   emoji?: string;
   // Highlights the player.
   isViewer?: boolean;
@@ -41,9 +45,11 @@ export const Character = ({
 }) => {
   const [spriteSheet, setSpriteSheet] = useState<Spritesheet>();
   useEffect(() => {
+    // Fix: Check if spritesheetData exists before using it.
+    if (!spritesheetData) return;
     const parseSheet = async () => {
       const sheet = new Spritesheet(
-        BaseTexture.from(textureUrl, {
+        PIXI.BaseTexture.from(textureUrl, {
           scaleMode: PIXI.SCALE_MODES.NEAREST,
         }),
         spritesheetData,
@@ -52,38 +58,23 @@ export const Character = ({
       setSpriteSheet(sheet);
     };
     void parseSheet();
-  }, []);
+  }, [spritesheetData, textureUrl]);
 
   // The first "left" is "right" but reflected.
   const roundedOrientation = Math.floor(orientation / 90);
   const direction = ['right', 'down', 'left', 'up'][roundedOrientation];
+  const animation = isDancing ? 'dance' : direction;
 
   // Prevents the animation from stopping when the texture changes
   // (see https://github.com/pixijs/pixi-react/issues/359)
   const ref = useRef<PIXI.AnimatedSprite | null>(null);
   useEffect(() => {
-    if (isMoving) {
+    if (isMoving || isDancing) {
       ref.current?.play();
     }
-  }, [direction, isMoving]);
+  }, [direction, isMoving, isDancing]);
 
   if (!spriteSheet) return null;
-
-  let blockOffset = { x: 0, y: 0 };
-  switch (roundedOrientation) {
-    case 2:
-      blockOffset = { x: -20, y: 0 };
-      break;
-    case 0:
-      blockOffset = { x: 20, y: 0 };
-      break;
-    case 3:
-      blockOffset = { x: 0, y: -20 };
-      break;
-    case 1:
-      blockOffset = { x: 0, y: 20 };
-      break;
-  }
 
   return (
     <Container x={x} y={y} interactive={true} pointerdown={onClick} cursor="pointer">
@@ -98,8 +89,8 @@ export const Character = ({
       {isViewer && <ViewerIndicator />}
       <AnimatedSprite
         ref={ref}
-        isPlaying={isMoving}
-        textures={spriteSheet.animations[direction]}
+        isPlaying={isMoving || isDancing}
+        textures={spriteSheet.animations[animation]}
         animationSpeed={speed}
         anchor={{ x: 0.5, y: 0.5 }}
       />

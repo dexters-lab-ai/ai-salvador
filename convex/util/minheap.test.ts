@@ -1,3 +1,6 @@
+
+// Fix: Add imports for jest globals to fix typescript errors.
+import { describe, test, expect } from '@jest/globals';
 import { MinHeap } from './minheap';
 
 describe('MinHeap', () => {

@@ -14,6 +14,7 @@ export function Messages({
   inConversationWithMe,
   humanPlayer,
   scrollViewRef,
+  isMeetingActive,
 }: {
   worldId: Id<'worlds'>;
   engineId: Id<'engines'>;
@@ -23,6 +24,7 @@ export function Messages({
   inConversationWithMe: boolean;
   humanPlayer?: Player;
   scrollViewRef: React.RefObject<HTMLDivElement>;
+  isMeetingActive: boolean;
 }) {
   const humanPlayerId = humanPlayer?.id;
   const descriptions = useQuery(api.world.gameDescriptions, { worldId });
@@ -30,6 +32,8 @@ export function Messages({
     worldId,
     conversationId: conversation.doc.id,
   });
+  const meetingNotes = useQuery(api.world.getLatestMeetingNotes, worldId ? { worldId } : 'skip');
+
   let currentlyTyping = conversation.kind === 'active' ? conversation.doc.isTyping : undefined;
   if (messages !== undefined && currentlyTyping) {
     if (messages.find((m) => m.messageUuid === currentlyTyping!.messageUuid)) {
@@ -42,16 +46,29 @@ export function Messages({
 
   // Find the other participant (agent) to fetch their latest news memory
   let otherPlayerId: string | undefined = undefined;
-  if (conversation.kind === 'active') {
-    const ids = [...conversation.doc.participants.keys()];
-    otherPlayerId = ids.find((id) => id !== humanPlayerId);
-  } else {
-    const ids = conversation.doc.participants;
-    otherPlayerId = humanPlayerId ? ids.find((id) => id !== humanPlayerId) : ids[0];
+  if (isMeetingActive) {
+    // In meeting mode, we don't need to find another participant
+    return null;
+  } else if (conversation.kind === 'active') {
+    const participants = conversation.doc?.participants;
+    if (participants) {
+      const ids = [...participants.keys()];
+      otherPlayerId = ids.find((id) => id !== humanPlayerId);
+    }
+  } else if (conversation.kind === 'archived') {
+    const participants = conversation.doc?.participants;
+    if (participants) {
+      otherPlayerId = humanPlayerId ? participants.find((id) => id !== humanPlayerId) : participants[0];
+    }
   }
   const latestNews = useQuery(
     api.agent.memory.getLatestNewsMemoryPublic,
     otherPlayerId ? { playerId: otherPlayerId as any } : 'skip',
+  );
+  // If the other agent is actively reading the news, prefer their current activity.article
+  const otherActivity = useQuery(
+    api.world.getPlayerActivity,
+    otherPlayerId ? ({ worldId, playerId: otherPlayerId as any } as any) : 'skip',
   );
 
   const scrollView = scrollViewRef.current;
@@ -78,21 +95,40 @@ export function Messages({
 
   // TTS: speak agent messages (not human) as they arrive
   const spoken = useRef<Set<string>>(new Set());
-  const agentMessages = useMemo(() =>
-    (messages ?? []).filter((m) => m.author !== humanPlayerId),
-  [messages, humanPlayerId]);
+  // On conversation switch or unmount, cancel any ongoing TTS and reset spoken set
+  useEffect(() => {
+    const synth = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+    // Cancel anything currently speaking when this conversation changes
+    if (synth) try { synth.cancel(); } catch {}
+    spoken.current.clear();
+    return () => {
+      const s = typeof window !== 'undefined' ? window.speechSynthesis : undefined;
+      if (s) try { s.cancel(); } catch {}
+      spoken.current.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.doc.id]);
+  const agentMessages = useMemo(
+    () => (messages ?? []).filter((m) => m.author !== humanPlayerId),
+    [messages, humanPlayerId],
+  );
 
   useEffect(() => {
+    if (inConversationWithMe) {
+      // Don't play TTS if the human is in this conversation.
+      return;
+    }
     const synth = window.speechSynthesis;
     if (!synth) return;
     const voices = synth.getVoices();
     const pickVoice = (name?: string) => {
-      const female = ['Alice','Stella','Kira'];
-      const male = ['ICE','MS-13','President Bukele','Alex','Lucky','Bob','Kurt','Pete'];
+      const female = ['Alice', 'Stella', 'Kira'];
+      const male = ['ICE', 'MS-13', 'President Bukele', 'Alex', 'Lucky', 'Bob', 'Kurt', 'Pete'];
       const preferFemale = name ? female.some((n) => name.includes(n)) : false;
       const preferMale = name ? male.some((n) => name.includes(n)) : false;
       // Try to pick a gendered voice name if available
-      const byName = (needle: string) => voices.find((v) => v.name.toLowerCase().includes(needle));
+      const byName = (needle: string) =>
+        voices.find((v) => v.name.toLowerCase().includes(needle));
       if (preferFemale) return byName('female') || byName('google uk english female') || voices[0];
       if (preferMale) return byName('male') || byName('google uk english male') || voices[0];
       return voices[0];
@@ -105,9 +141,11 @@ export function Messages({
       utter.rate = 1.0;
       utter.pitch = 1.0;
       utter.voice = pickVoice(m.authorName);
-      try { synth.speak(utter); } catch {}
+      try {
+        synth.speak(utter);
+      } catch {}
     }
-  }, [agentMessages]);
+  }, [agentMessages, inConversationWithMe]);
   if (messages === undefined) {
     // Render minimal container to keep hook order stable
     return <div className="p-2 text-sm opacity-70">Loading messages…</div>;
@@ -182,7 +220,33 @@ export function Messages({
   return (
     <div className="chats text-base sm:text-sm">
       <div className="bg-brown-200 text-black p-2">
-        {latestNews && (
+        {isMeetingActive && meetingNotes && (
+          <div className="mb-4">
+            <div className="relative mx-auto max-w-xl bg-white text-black p-3 shadow-solid border-4 border-brown-700">
+              <div className="text-center font-display text-xl">Town Meeting Notes</div>
+              <div className="mt-1 text-xs text-gray-600">
+                {new Date(meetingNotes._creationTime).toLocaleString()}
+              </div>
+              <div className="mt-2 italic">{meetingNotes.description}</div>
+            </div>
+          </div>
+        )}
+        {/* Prefer live article if the other agent is actively reading the news */}
+        {otherActivity?.description?.toLowerCase().includes('news') && otherActivity?.article && !isMeetingActive ? (
+          <div className="mb-4">
+            <div className="relative mx-auto max-w-xl bg-white text-black p-3 shadow-solid border-4 border-brown-700">
+              <div className="text-center font-display text-xl">Reading News</div>
+              <div className="mt-1 text-xs text-gray-600 flex items-center justify-between">
+                <span className="uppercase tracking-wide font-semibold">{otherActivity.article.source}</span>
+              </div>
+              <div className="mt-2 font-semibold">{otherActivity.article.headline}</div>
+              {otherActivity.article.imageUrl && (
+                <img src={otherActivity.article.imageUrl} alt="News" className="w-full h-auto my-2" />
+              )}
+              <div className="mt-2 italic whitespace-pre-wrap">{otherActivity.article.content}</div>
+            </div>
+          </div>
+        ) : latestNews && !isMeetingActive && (
           <div className="mb-4">
             <div className="relative mx-auto max-w-xl bg-white text-black p-3 shadow-solid border-4 border-brown-700">
               <div className="text-center font-display text-xl">Daily Gazette</div>
@@ -198,9 +262,7 @@ export function Messages({
                   <img src={url} alt="News article image" className="w-full h-auto my-2" />
                 ) : null;
               })()}
-              <div className="mt-2 italic">
-                {latestNews.description}
-              </div>
+              <div className="mt-2 italic">{latestNews.description}</div>
             </div>
           </div>
         )}

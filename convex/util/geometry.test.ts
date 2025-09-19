@@ -1,3 +1,6 @@
+
+// Fix: Add imports for jest globals to fix typescript errors.
+import { describe, test, expect } from '@jest/globals';
 import { compressPath, distance, manhattanDistance, normalize, orientationDegrees, pathOverlaps, pathPosition, pointsEqual, vector, vectorLength } from './geometry';
 import { Path, Vector } from './types';
 
@@ -90,7 +93,12 @@ describe('pathOverlaps', () => {
       [0, 0, 0, 1, 0]
     ];
     const time = 0;
-    expect(() => pathOverlaps(path, time)).toThrowError('Invalid path: [[0,0,0,1,0]]');
+    try {
+      pathOverlaps(path, time);
+      expect(true).toBe(false); // Should not be reached
+    } catch (e: any) {
+      expect(e.message).toBe('Invalid path: [[0,0,0,1,0]]');
+    }
   });
 
   test('should return true if the time is within the path', () => {
@@ -127,7 +135,12 @@ describe('pathPosition', () => {
       [0, 0, 0, 1, 0]
     ];
     const time = 0;
-    expect(() => pathPosition(path, time)).toThrowError('Invalid path: [[0,0,0,1,0]]');
+    try {
+      pathPosition(path, time);
+      expect(true).toBe(false); // Should not be reached
+    } catch (e: any) {
+      expect(e.message).toBe('Invalid path: [[0,0,0,1,0]]');
+    }
   });
 
   test('returns the first point when time is less than the start time', () => {
@@ -231,7 +244,12 @@ describe('normalize', () => {
 
 describe('orientationDegrees', () => {
   test('should throw an error for a vector length smaller than EPSILON', () => {
-    expect(() => orientationDegrees({ dx: 0, dy: 0 })).toThrowError("Can't compute the orientation of too small vector {\"dx\":0,\"dy\":0}");
+    try {
+      orientationDegrees({ dx: 0, dy: 0 });
+      expect(true).toBe(false); // Should not be reached
+    } catch (e: any) {
+      expect(e.message).toBe("Can't compute the orientation of too small vector {\"dx\":0,\"dy\":0}");
+    }
   });
   test('should return 0 for a vector pointing to the right', () => {
     expect(orientationDegrees({ dx: 1, dy: 0 })).toBe(0);

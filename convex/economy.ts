@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
+import { internal } from './_generated/api';
 
 const HUSTLE_SUCCESS_RATE = 0.1;
 const EARNING_RATE = 0.1;
@@ -179,6 +180,30 @@ export const transferAllBalance = internalMutation({
       amount: -amount,
       timestamp: Date.now(),
     });
+  },
+});
+
+export const transferAllToBukele = internalMutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx, { worldId }) => {
+    const playerDescriptions = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', worldId))
+      .collect();
+    const bukele = playerDescriptions.find((d) => d.name === 'President Bukele');
+    if (!bukele) return;
+
+    const world = await ctx.db.get(worldId);
+    if (!world) return;
+
+    for (const agent of world.agents) {
+      if (agent.playerId !== bukele.playerId) {
+        await ctx.scheduler.runAfter(0, internal.economy.transferAllBalance, {
+          fromId: agent.playerId,
+          toId: bukele.playerId,
+        });
+      }
+    }
   },
 });
 

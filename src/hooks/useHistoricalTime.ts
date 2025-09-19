@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 
 export function useHistoricalTime(engineStatus?: Doc<'engines'>) {
   const timeManager = useRef(new HistoricalTimeManager());
-  const rafRef = useRef<number>();
+  // Fix: Initialize useRef with a value to avoid type errors.
+  const rafRef = useRef<number>(0);
   const [historicalTime, setHistoricalTime] = useState<number | undefined>(undefined);
   if (engineStatus) {
     timeManager.current.receive(engineStatus);
@@ -104,7 +105,8 @@ export class HistoricalTimeManager {
       }
     }
     if (chosen === null) {
-      serverTs = this.intervals.at(-1)!.endTs;
+      // Fix: Replace .at(-1) with [length - 1] for wider compatibility.
+      serverTs = this.intervals[this.intervals.length - 1]!.endTs;
       chosen = this.intervals.length - 1;
     }
     // Time only moves forward, so we can trim all of the snapshots before our chosen one.

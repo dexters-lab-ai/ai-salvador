@@ -1,3 +1,5 @@
+// Fix: Add imports for jest globals to fix typescript errors.
+import { describe, test, expect } from '@jest/globals';
 import { History, packSampleRecord, unpackSampleRecord } from './historicalObject';
 
 describe('HistoricalObject', () => {
