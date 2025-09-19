@@ -3,7 +3,7 @@
 
 // Fix: Add imports for jest globals to fix typescript errors.
 import { describe, test, expect } from '@jest/globals';
-import { History, packSampleRecord, unpackSampleRecord } from './historicalObject';
+import { History, packSampleRecord, unpackSampleRecord } from '../convex/engine/historicalObject';
 
 describe('HistoricalObject', () => {
   test('pack sample record roundtrips', () => {

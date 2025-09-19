@@ -19,6 +19,7 @@ if (!publishableKey) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ClerkProvider publishableKey={publishableKey}>
+      {/* Fix: Pass Home component as children to satisfy the prop type. */}
       <ConvexClientProvider>
         <Home />
       </ConvexClientProvider>

@@ -1,7 +1,7 @@
 import { ObjectType, v } from 'convex/values';
 import { GameId, parseGameId } from './ids';
 import { agentId, conversationId, playerId } from './ids';
-import { serializedPlayer } from './player';
+import { SerializedPlayer, Player } from './player';
 import { Game } from './game';
 import {
   ACTION_TIMEOUT,
@@ -25,9 +25,11 @@ import { insertInput } from './insertInput';
 import { inputHandler } from './inputHandler';
 import { Point } from '../util/types';
 import { Descriptions } from '../../data/characters';
-import { Player, activity } from './player';
+import { activity } from './player';
 import { Conversation, conversationInputs } from './conversation';
-import { AgentDescription } from './agentDescription';
+import { AgentDescription, SerializedAgentDescription } from '../../src/shared/agentDescription';
+// Fix: Import `serializedPlayer` to resolve 'Cannot find name' error.
+import { serializedPlayer } from './player';
 
 export class Agent {
   id: GameId<'agents'>;

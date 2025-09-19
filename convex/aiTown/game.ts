@@ -96,11 +96,17 @@ export class Game extends AbstractGame {
 
     this.descriptionsModified = false;
     this.worldMap = new WorldMap(state.worldMap);
-    this.agentDescriptions = parseMap(state.agentDescriptions, AgentDescription, (a) => a.agentId);
-    this.playerDescriptions = parseMap(
-      state.playerDescriptions,
-      PlayerDescription,
-      (p) => p.playerId,
+    this.agentDescriptions = new Map(
+      state.agentDescriptions.map(desc => {
+        const agentDesc = new AgentDescription(desc as any);
+        return [agentDesc.agentId, agentDesc];
+      })
+    );
+    this.playerDescriptions = new Map(
+      state.playerDescriptions.map(desc => {
+        const playerDesc = new PlayerDescription(desc);
+        return [playerDesc.playerId, playerDesc];
+      })
     );
 
     this.historicalLocations = new Map();

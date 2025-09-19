@@ -1,25 +1,12 @@
 import { ObjectType, v } from 'convex/values';
-import { GameId, agentId, parseGameId } from './ids';
+import { agentId } from './ids';
+import {
+  AgentDescription as AgentDescriptionClass,
+  SerializedAgentDescription,
+} from '../../src/shared/agentDescription';
 
-export class AgentDescription {
-  agentId: GameId<'agents'>;
-  identity: string;
-  plan: string;
-  btcGoal: number;
-
-  constructor(serialized: SerializedAgentDescription) {
-    const { agentId, identity, plan, btcGoal } = serialized;
-    this.agentId = parseGameId('agents', agentId);
-    this.identity = identity;
-    this.plan = plan;
-    this.btcGoal = btcGoal ?? 1;
-  }
-
-  serialize(): SerializedAgentDescription {
-    const { agentId, identity, plan, btcGoal } = this;
-    return { agentId, identity, plan, btcGoal };
-  }
-}
+// Fix: Exporting as a class makes it available as both a value (constructor) and a type.
+export class AgentDescription extends AgentDescriptionClass {}
 
 export const serializedAgentDescription = {
   agentId,
@@ -27,4 +14,3 @@ export const serializedAgentDescription = {
   plan: v.string(),
   btcGoal: v.optional(v.float64()),
 };
-export type SerializedAgentDescription = ObjectType<typeof serializedAgentDescription>;

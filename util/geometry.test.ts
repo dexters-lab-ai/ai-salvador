@@ -1,7 +1,8 @@
+
 // Fix: Add imports for jest globals to fix typescript errors.
 import { describe, test, expect } from '@jest/globals';
-import { compressPath, distance, manhattanDistance, normalize, orientationDegrees, pathOverlaps, pathPosition, pointsEqual, vector, vectorLength } from './geometry';
-import { Path, Vector } from './types';
+import { compressPath, distance, manhattanDistance, normalize, orientationDegrees, pathOverlaps, pathPosition, pointsEqual, vector, vectorLength } from '../convex/util/geometry';
+import { Path, Vector } from '../convex/util/types';
 
 describe('distance', () => {
   test('should return the correct distance for two points', () => {
