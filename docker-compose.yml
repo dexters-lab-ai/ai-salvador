@@ -1,56 +1,19 @@
 version: '3.8'
 
 services:
-  app:
-    build: 
-      context: .
-      args:
-        - VITE_CONVEX_URL=${VITE_CONVEX_URL}
-        - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+  frontend:
+    build: .
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - CHOKIDAR_USEPOLLING=true
-      - CI=true
-      - CONVEX_CLI_DISABLE_UPDATE_CHECK=true
-      - CONVEX_CLI_LOG_LEVEL=error
-      - VITE_CONVEX_URL=${VITE_CONVEX_URL:-http://convex:3210}
+      - VITE_CONVEX_URL=${VITE_CONVEX_URL}
       - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
-      - CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT:-local}
-      - TWITTER_API_KEY=${TWITTER_API_KEY:-}
-      - TWITTER_API_SECRET=${TWITTER_API_SECRET:-}
-      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN:-}
-      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET:-}
-      - TWITTER_USER_ID=${TWITTER_USER_ID:-}
       - NPM_CONFIG_PYTHON=/usr/bin/python3
-      - CONVEX_SELF_HOSTED_URL=http://convex:3210
     ports:
       - '${PORT:-3000}:3000'
     volumes:
       - .:/app
       - /app/node_modules
-    depends_on:
-      - convex
-    networks:
-      - ai-town-network
-
-  convex:
-    image: ghcr.io/get-convex/convex-backend:latest
-    ports:
-      - '${CONVEX_PORT:-3210}:3210'
-      - '${SITE_PROXY_PORT:-3211}:3211'
-      - '11434:11434'  # Ollama
-    environment:
-      - CONVEX_CLOUD_ORIGIN=http://convex:3210
-      - CONVEX_SITE_ORIGIN=http://convex:3211
-      - INSTANCE_NAME=${INSTANCE_NAME}
-      - CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}
-    volumes:
-      - convex_data:/convex/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3210/version"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
     networks:
       - ai-town-network
 

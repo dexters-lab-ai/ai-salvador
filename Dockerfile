@@ -22,15 +22,11 @@ COPY package*.json ./
 # Install dependencies with legacy peer deps
 RUN npm install --legacy-peer-deps
 
-# Create .convex directory and set up credentials
-RUN mkdir -p /root/.convex && \
-    echo '{"accessToken": "local-dev-token", "deploymentType": "dev"}' > /root/.convex/credentials.json
-
 # Copy source code
 COPY . .
 
-# Environment variables
-ENV NODE_ENV=development \
+# Environment variables - will be overridden by docker-compose
+ENV NODE_ENV=production \
     CHOKIDAR_USEPOLLING=true \
     CI=true \
     CONVEX_CLI_DISABLE_UPDATE_CHECK=true \
