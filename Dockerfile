@@ -1,39 +1,33 @@
-# Stage 1: Build the React application
-FROM node:18-alpine AS build
+# Use Node.js LTS
+FROM node:18-alpine
 
-WORKDIR /usr/src/app
+# Set working directory
+WORKDIR /app
 
-# Build-time env for Vite (set via --build-arg), with safe defaults
-ARG VITE_ADMIN=0
-ARG VITE_CONVEX_URL
-ARG VITE_CLERK_PUBLISHABLE_KEY
-ENV VITE_ADMIN=$VITE_ADMIN \
-    VITE_CONVEX_URL=$VITE_CONVEX_URL \
-    VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
+# Install system dependencies
+RUN apk add --no-cache git
 
-# Copy dependency files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (including devDependencies for development)
 RUN npm install
 
-# Copy the rest of the application files
+# Copy source code
 COPY . .
 
-# Build the application for production
-RUN npm run build
+# Build-time arguments
+ARG VITE_CONVEX_URL
+ARG VITE_CLERK_PUBLISHABLE_KEY
 
-# Stage 2: Serve the application with Nginx
-FROM nginx:stable-alpine
+# Environment variables
+ENV NODE_ENV=development \
+    CHOKIDAR_USEPOLLING=true \
+    VITE_CONVEX_URL=${VITE_CONVEX_URL} \
+    VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
 
-# Copy the built files from the build stage
-COPY --from=build /usr/src/app/dist /usr/share/nginx/html
+# Expose port
+EXPOSE 3000
 
-# Copy the Nginx configuration file
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Expose port 80
-EXPOSE 80
-
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
