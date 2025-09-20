@@ -1,5 +1,5 @@
-# Use Node.js LTS with Debian base
-FROM node:18-slim
+# Use Node.js 20 LTS with Debian base
+FROM node:20-slim
 
 # Set working directory
 WORKDIR /app
@@ -19,9 +19,8 @@ ENV PYTHONUNBUFFERED=1
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install npm dependencies with legacy peer deps
-RUN npm install -g npm@latest \
-    && npm install --legacy-peer-deps
+# Install dependencies with legacy peer deps
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
