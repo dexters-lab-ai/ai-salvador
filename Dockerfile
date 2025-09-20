@@ -1,30 +1,26 @@
-# Use Node.js LTS with Alpine base
-FROM node:18-alpine
+# Use Node.js LTS with Debian base
+FROM node:18-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies including Python and build tools
-RUN apk add --no-cache --update \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
     git \
     python3 \
     make \
     g++ \
-    gcc \
-    py3-pip \
-    && ln -sf python3 /usr/bin/python
+    && rm -rf /var/lib/apt/lists/*
 
 # Set Python environment variables
-ENV PYTHON=/usr/bin/python3
+ENV PYTHON=python3
 ENV PYTHONUNBUFFERED=1
 
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install npm dependencies with legacy peer deps to avoid conflicts
-RUN npm config set python /usr/bin/python3 \
-    && npm config set unsafe-perm true \
-    && npm install -g npm@latest \
+# Install npm dependencies with legacy peer deps
+RUN npm install -g npm@latest \
     && npm install --legacy-peer-deps
 
 # Copy source code
