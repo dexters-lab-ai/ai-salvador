@@ -8,27 +8,28 @@ services:
         - VITE_CONVEX_URL=${VITE_CONVEX_URL}
         - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - CHOKIDAR_USEPOLLING=true
       - CI=true
       - CONVEX_CLI_DISABLE_UPDATE_CHECK=true
       - CONVEX_CLI_LOG_LEVEL=error
-      - VITE_CONVEX_URL=${VITE_CONVEX_URL}
+      - VITE_CONVEX_URL=${VITE_CONVEX_URL:-http://convex:3210}
       - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
-      - CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT:-}
-      - TWITTER_API_KEY=${TWITTER_API_KEY}
-      - TWITTER_API_SECRET=${TWITTER_API_SECRET}
-      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN}
-      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET}
-      - TWITTER_USER_ID=${TWITTER_USER_ID}
+      - CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT:-local}
+      - TWITTER_API_KEY=${TWITTER_API_KEY:-}
+      - TWITTER_API_SECRET=${TWITTER_API_SECRET:-}
+      - TWITTER_ACCESS_TOKEN=${TWITTER_ACCESS_TOKEN:-}
+      - TWITTER_ACCESS_TOKEN_SECRET=${TWITTER_ACCESS_TOKEN_SECRET:-}
+      - TWITTER_USER_ID=${TWITTER_USER_ID:-}
       - NPM_CONFIG_PYTHON=/usr/bin/python3
+      - CONVEX_SELF_HOSTED_URL=http://convex:3210
     ports:
       - '${PORT:-3000}:3000'
     volumes:
       - .:/app
       - /app/node_modules
-    stdin_open: true
-    tty: true
+    depends_on:
+      - convex
     networks:
       - ai-town-network
 
