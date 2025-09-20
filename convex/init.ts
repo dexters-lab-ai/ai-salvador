@@ -81,9 +81,8 @@ async function getOrCreateDefaultWorld(ctx: MutationCtx) {
     tileSetDimY: map.tilesetpxh,
     tileDim: map.tiledim,
     bgTiles: map.bgtiles,
-    // Using bgtiles for both objectTiles and animatedSprites as they're not available in the map export
-    objectTiles: map.bgtiles,
-    animatedSprites: [],
+    objectTiles: map.objmap,
+    animatedSprites: map.animatedsprites,
   });
   await ctx.scheduler.runAfter(0, internal.aiTown.main.runStep, {
     worldId,

@@ -118,13 +118,11 @@ export const runStep = internalAction({
       });
     } catch (e: unknown) {
       if (e instanceof ConvexError) {
-        // Fix: Use type-safe access to ConvexError data property.
-        const data = e.data as { kind: string };
-        if (data?.kind === 'engineNotRunning') {
+        if ((e.data as any)?.kind === 'engineNotRunning') {
           console.debug(`Engine is not running: ${(e as Error).message}`);
           return;
         }
-        if (data?.kind === 'generationNumber') {
+        if ((e.data as any)?.kind === 'generationNumber') {
           console.debug(`Generation number mismatch: ${(e as Error).message}`);
           return;
         }

@@ -1,7 +1,6 @@
-
 // Fix: Add imports for jest globals to fix typescript errors.
 import { describe, it, expect } from '@jest/globals';
-import { asyncMap } from '../convex/util/asyncMap';
+import { asyncMap } from './asyncMap';
 
 describe('asyncMap', () => {
   it('should map over a list asynchronously', async () => {

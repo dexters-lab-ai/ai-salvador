@@ -9,12 +9,10 @@ import {
   IDLE_WORLD_TIMEOUT,
   WORLD_HEARTBEAT_INTERVAL,
 } from './constants';
-import { agentId, playerId } from './aiTown/ids';
+import { playerId } from './aiTown/ids';
 import { kickEngine, startEngine, stopEngine } from './aiTown/main';
 import { engineInsertInput } from './engine/abstractGame';
 import { fetchEmbedding } from './util/llm';
-import { Doc, Id } from './_generated/dataModel';
-import { SerializedConversation } from './aiTown/conversation';
 
 export const defaultWorldStatus = query({
   handler: async (ctx) => {
@@ -311,7 +309,7 @@ export const triggerChaseIfNeeded = internalAction({
       return;
     }
     const conversationExists = worldState.world.conversations.some(
-      (c: SerializedConversation) => c.id === args.conversationId,
+      (c) => c.id === args.conversationId,
     );
     if (conversationExists) {
       console.log(`8s fallback: triggering chase for conversation ${args.conversationId}`);
@@ -846,7 +844,7 @@ export const conductMeeting = internalAction({
     if (!villageState || !agents.length || !bukele) return;
 
     const agentPortfolios = await ctx.runQuery(api.economy.getAgentPortfolios, { worldId });
-    const totalAgentBtc = agentPortfolios.reduce((sum: number, p: { btcBalance: number }) => sum + p.btcBalance, 0);
+    const totalAgentBtc = agentPortfolios.reduce((sum, p) => sum + p.btcBalance, 0);
 
     const btcNow = villageState.btcPrice;
     const btcPrev = villageState.previousBtcPrice;
@@ -856,12 +854,12 @@ export const conductMeeting = internalAction({
     const treasuryUsd = treasuryBtc * btcNow;
     const touristCount = villageState.touristCount ?? 0;
 
-    const headlines = (recentNews ?? []).map((n: Doc<'news'>) => n.headline);
+    const headlines = (recentNews ?? []).map((n: any) => n.headline);
     const topHeadlines = headlines.slice(0, 3);
 
     const newsText =
       topHeadlines.length > 0
-        ? `Recent news: ${topHeadlines.map((h: string, i: number) => `#${i + 1} ${h}`).join(' | ')}`
+        ? `Recent news: ${topHeadlines.map((h, i) => `#${i + 1} ${h}`).join(' | ')}`
         : 'No recent news.';
 
     const trendText = btcDelta === 0
@@ -1013,143 +1011,5 @@ export const dismissParty = internalMutation({
         }
       }
     }
-  },
-});
-
-export const getSocialFeed = query({
-  handler: async (ctx) => {
-    return await ctx.db.query('tweets').withIndex('by_creation_time').order('desc').take(20);
-  },
-});
-
-export const addTweetToFeed = internalMutation({
-  args: {
-    worldId: v.id('worlds'),
-    authorId: playerId,
-    authorName: v.string(),
-    text: v.string(),
-    twitterTweetId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    if (args.twitterTweetId) {
-      const existing = await ctx.db.query('tweets').withIndex('by_twitter_id', (q) => q.eq('twitterTweetId', args.twitterTweetId)).first();
-      if (existing) {
-        console.log(`Tweet ${args.twitterTweetId} already exists, skipping.`);
-        return;
-      }
-    }
-    await ctx.db.insert('tweets', {
-      worldId: args.worldId,
-      authorId: args.authorId,
-      authorName: args.authorName,
-      text: args.text,
-      twitterTweetId: args.twitterTweetId,
-    });
-  },
-});
-
-export const getRecentTweets = internalQuery({
-  args: { numTweets: v.optional(v.number()) },
-  handler: async (ctx, { numTweets = 1 }) => {
-    return await ctx.db.query('tweets').withIndex('by_creation_time').order('desc').take(numTweets);
-  },
-});
-
-export const createPendingTweet = internalMutation({
-  args: { worldId: v.id('worlds'), agentId, text: v.string() },
-  handler: async (ctx, args) => {
-    await ctx.db.insert('pendingTweets', {
-      worldId: args.worldId,
-      agentId: args.agentId,
-      text: args.text,
-      status: 'pending',
-    });
-  },
-});
-
-export const getPendingTweets = query({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, args) => {
-    const pending = await ctx.db
-      .query('pendingTweets')
-      .withIndex('worldId_status', (q) => q.eq('worldId', args.worldId).eq('status', 'pending'))
-      .collect();
-    
-    const world = await ctx.db.get(args.worldId);
-    if (!world) {
-        return [];
-    }
-
-    return Promise.all(
-      pending.map(async (tweet) => {
-        const agent = world.agents.find((a) => a.id === tweet.agentId);
-        if (!agent) return null;
-        const player = await ctx.db
-          .query('playerDescriptions')
-          .withIndex('worldId', q => q.eq('worldId', args.worldId).eq('playerId', agent.playerId))
-          .first();
-        if (!player) return null;
-        return { ...tweet, agent, player };
-      }),
-    ).then(results => results.filter(Boolean) as NonNullable<typeof results[0]>[]);
-  },
-});
-
-export const getPendingTweet = internalQuery({
-  args: { pendingTweetId: v.id('pendingTweets') },
-  handler: async (ctx, { pendingTweetId }) => {
-    const tweet = await ctx.db.get(pendingTweetId);
-    if (!tweet) return null;
-    const world = await ctx.db.get(tweet.worldId);
-    if (!world) return null;
-    const agent = world.agents.find((a) => a.id === tweet.agentId);
-    if (!agent) return null;
-    const player = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', q => q.eq('worldId', tweet.worldId).eq('playerId', agent.playerId))
-      .first();
-    if (!player) return null;
-    return { ...tweet, agent, player };
-  }
-});
-
-export const getPlayerDescriptions = internalQuery({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, args) => {
-    return await ctx.db.query('playerDescriptions').withIndex('worldId', q => q.eq('worldId', args.worldId)).collect();
-  }
-});
-
-export const getBukeleAgentData = internalQuery({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, args) => {
-    const world = await ctx.db.get(args.worldId);
-    if (!world) return null;
-
-    const playerDescriptions = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .collect();
-    const bukeleDesc = playerDescriptions.find((d) => d.name === 'President Bukele');
-    if (!bukeleDesc) return null;
-
-    const agent = world.agents.find((a: any) => a.playerId === bukeleDesc.playerId);
-    if (!agent) return null;
-
-    return { agent };
-  },
-});
-
-export const markPendingTweetPosted = internalMutation({
-  args: { pendingTweetId: v.id('pendingTweets') },
-  handler: async (ctx, { pendingTweetId }) => {
-    await ctx.db.patch(pendingTweetId, { status: 'posted' });
-  },
-});
-
-export const markPendingTweetFailed = internalMutation({
-  args: { pendingTweetId: v.id('pendingTweets') },
-  handler: async (ctx, { pendingTweetId }) => {
-    await ctx.db.patch(pendingTweetId, { status: 'failed' });
   },
 });

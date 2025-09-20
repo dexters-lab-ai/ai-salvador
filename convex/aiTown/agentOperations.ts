@@ -1,15 +1,16 @@
+
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { WorldMap, serializedWorldMap } from './worldMap';
 import { rememberConversation } from '../agent/memory';
 import { GameId, agentId, conversationId, playerId } from './ids';
-import { Doc, Id } from '../_generated/dataModel';
+import { Id } from '../_generated/dataModel';
 import {
   continueConversationMessage,
   leaveConversationMessage,
   startConversationMessage,
 } from '../agent/conversation';
-import { rememberMarketSentiment } from '../agent/memory';
+import { latestMemoryOfType, rememberMarketSentiment } from '../agent/memory';
 import { assertNever } from '../util/assertNever';
 import { serializedAgent } from './agent';
 import { ACTIVITIES, ACTIVITY_COOLDOWN, CONVERSATION_COOLDOWN } from '../constants';
@@ -17,7 +18,6 @@ import { api, internal } from '../_generated/api';
 import { sleep } from '../util/sleep';
 import { serializedPlayer } from './player';
 import { distance } from '../util/geometry';
-import { chatCompletion } from '../util/llm';
 
 export const agentReadNews = internalAction({
   args: {
@@ -91,7 +91,7 @@ export const agentGenerateMessage = internalAction({
         completionFn = leaveConversationMessage;
         break;
       default:
-        assertNever(args.type as never);
+        assertNever(args.type);
     }
     const text = await completionFn(
       ctx,
@@ -122,7 +122,7 @@ export const agentGenerateMessage = internalAction({
       });
     }
 
-    await ctx.runMutation(internal.messages.agentWriteMessage, {
+    await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,
       conversationId: args.conversationId,
       agentId: args.agentId,
@@ -148,31 +148,6 @@ export const agentDoSomething = internalAction({
     const { player, agent } = args;
     const map = new WorldMap(args.map);
     const now = Date.now();
-
-    // President Bukele might tweet. This is a high-priority action for him.
-    if (player.name === 'President Bukele' && Math.random() < 0.1) {
-      console.log(`Agent ${agent.id} (President Bukele) deciding to compose a tweet.`);
-      // This action will call finishDoSomething itself.
-      await ctx.runAction(internal.agent.operations.agentComposeTweet, {
-        worldId: args.worldId,
-        player: args.player,
-        agent: args.agent,
-        operationId: args.operationId,
-      });
-      return;
-    }
-
-    // Any agent might read the social feed. This is a quick background action and does not
-    // prevent them from doing other things.
-    if (Math.random() < 0.05) {
-      console.log(`Agent ${agent.id} reading social feed.`);
-      await ctx.runAction(internal.agent.operations.agentReadSocialFeed, {
-        worldId: args.worldId,
-        playerId: player.id,
-        agentId: agent.id,
-        operationId: args.operationId,
-      });
-    }
 
     const villageState = await ctx.runQuery(api.world.villageState, {});
     if (villageState && villageState.marketSentiment !== 'neutral') {
@@ -341,90 +316,3 @@ function wanderDestination(worldMap: WorldMap) {
     y: 1 + Math.floor(Math.random() * (worldMap.height - 2)),
   };
 }
-
-export const agentComposeTweet = internalAction({
-  args: {
-    worldId: v.id('worlds'),
-    player: v.object(serializedPlayer),
-    agent: v.object(serializedAgent),
-    operationId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const { player, agent } = args;
-
-    const { memories } = await ctx.runQuery(internal.agent.memory.getReflectionMemories, {
-      worldId: args.worldId,
-      playerId: player.id as GameId<'players'>,
-      numberOfItems: 10,
-    });
-
-    let tweetText;
-
-    if (memories.length > 0) {
-      const recentMemoryDescriptions = memories.map((m: Doc<'memories'>) => m.description).join('\n - ');
-
-      const prompt = `You are President Bukele of AI Salvador, a digital nation passionate about Bitcoin and technology. Based on your recent memories of conversations and events in the town, compose a short, impactful tweet (under 280 characters). Your tone is optimistic, forward-looking, and a bit tech-savvy. Do not use hashtags.
-
-Recent memories:
-- ${recentMemoryDescriptions}
-
-Tweet:`;
-
-      const { content } = await chatCompletion({
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 100,
-        temperature: 0.7,
-      });
-      tweetText = content.replace(/"/g, ''); // remove quotes from response
-    } else {
-      // Fallback tweet if no memories
-      tweetText = 'Another great day in AI Salvador! The future is bright. #Bitcoin';
-    }
-
-    if (tweetText) {
-      console.log(`Bukele's generated tweet: ${tweetText}`);
-      await ctx.runMutation(internal.world.createPendingTweet, {
-        worldId: args.worldId,
-        agentId: agent.id as GameId<'agents'>,
-        text: tweetText,
-      });
-    }
-
-    // Finish the 'doSomething' operation since tweeting was the action.
-    await ctx.runMutation(api.aiTown.main.sendInput, {
-      worldId: args.worldId,
-      name: 'finishDoSomething',
-      args: {
-        operationId: args.operationId,
-        agentId: agent.id,
-      },
-    });
-  },
-});
-
-export const agentReadSocialFeed = internalAction({
-  args: {
-    worldId: v.id('worlds'),
-    playerId,
-    agentId,
-    operationId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const recentTweets = await ctx.runQuery(internal.world.getRecentTweets, { numTweets: 1 });
-    if (!recentTweets || recentTweets.length === 0) {
-      return;
-    }
-    const tweet = recentTweets[0];
-    // Agents don't read their own tweets from the feed.
-    if (tweet.authorId === args.playerId) {
-      return;
-    }
-
-    const memory = `I saw a tweet from ${tweet.authorName}: "${tweet.text}"`;
-    await ctx.runAction(internal.agent.memory.agentRemember, {
-      agentId: args.agentId as GameId<'agents'>,
-      playerId: args.playerId as GameId<'players'>,
-      memory,
-    });
-  },
-});

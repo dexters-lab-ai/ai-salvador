@@ -1,4 +1,3 @@
-
 import { Container, Graphics, Text } from '@pixi/react';
 import { useState, useEffect, useCallback } from 'react';
 import * as PIXI from 'pixi.js';
@@ -45,6 +44,7 @@ export const FloatingText = ({
   const textRefCallback = useCallback((node: PIXI.Text | null) => {
     if (node) {
       // Force an update to get fresh metrics
+      node.updateText(true);
       setTextMetrics({ width: node.width, height: node.height });
     }
   }, []);
@@ -97,7 +97,7 @@ export const FloatingText = ({
           fill: color,
           fontWeight: 'bold',
           stroke: '#000000',
-          strokeThickness: 1,
+          strokeThickness: 1, // Reduced thickness
         })
       }
       alpha={alpha}

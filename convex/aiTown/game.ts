@@ -31,25 +31,22 @@ const gameState = v.object({
   playerDescriptions: v.array(v.object(serializedPlayerDescription)),
   agentDescriptions: v.array(v.object(serializedAgentDescription)),
   worldMap: v.object(serializedWorldMap),
-  villageState: v.union(
-    v.null(),
-    v.object({
-      isPartyActive: v.optional(v.boolean()),
-      meeting: v.optional(
-        v.object({
-          speakerId: v.string(),
-          summary: v.string(),
-          startTime: v.number(),
-        }),
-      ),
-      // Fix: Add missing fields to match the villageState schema
-      treasury: v.float64(),
-      btcPrice: v.float64(),
-      previousBtcPrice: v.float64(),
-      marketSentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
-      touristCount: v.optional(v.float64()),
-    }),
-  ),
+  villageState: v.union(v.null(), v.object({
+    isPartyActive: v.optional(v.boolean()),
+    meeting: v.optional(
+      v.object({
+        speakerId: v.string(),
+        summary: v.string(),
+        startTime: v.number(),
+      })
+    ),
+    // Fix: Add missing fields to match the villageState schema
+    treasury: v.float64(),
+    btcPrice: v.float64(),
+    previousBtcPrice: v.float64(),
+    marketSentiment: v.union(v.literal('positive'), v.literal('negative'), v.literal('neutral')),
+    touristCount: v.optional(v.float64()),
+  })),
 });
 type GameState = Infer<typeof gameState>;
 
@@ -96,17 +93,11 @@ export class Game extends AbstractGame {
 
     this.descriptionsModified = false;
     this.worldMap = new WorldMap(state.worldMap);
-    this.agentDescriptions = new Map(
-      state.agentDescriptions.map(desc => {
-        const agentDesc = new AgentDescription(desc as any);
-        return [agentDesc.agentId, agentDesc];
-      })
-    );
-    this.playerDescriptions = new Map(
-      state.playerDescriptions.map(desc => {
-        const playerDesc = new PlayerDescription(desc);
-        return [playerDesc.playerId, playerDesc];
-      })
+    this.agentDescriptions = parseMap(state.agentDescriptions, AgentDescription, (a) => a.agentId);
+    this.playerDescriptions = parseMap(
+      state.playerDescriptions,
+      PlayerDescription,
+      (p) => p.playerId,
     );
 
     this.historicalLocations = new Map();

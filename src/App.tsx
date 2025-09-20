@@ -1,18 +1,23 @@
-
 import Game from './components/Game.tsx';
+
 import { ToastContainer } from 'react-toastify';
 import a16zImg from '../assets/a16z.png';
+import convexImg from '../assets/convex.svg';
 import shareImg from '../assets/share.svg';
 import helpImg from '../assets/help.svg';
 import infoImg from '../assets/info.svg';
-import closeImg from '../assets/close.svg';
+// import { UserButton } from '@clerk/clerk-react';
+// import { Authenticated, Unauthenticated } from 'convex/react';
+// import LoginButton from './components/buttons/LoginButton.tsx';
 import { useState, useEffect, useRef } from 'react';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
+import type { CSSProperties } from 'react';
 import MusicButton from './components/buttons/MusicButton.tsx';
 import LandingCredits from './components/LandingCredits.tsx';
 import Button from './components/buttons/Button.tsx';
 import InteractButton from './components/buttons/InteractButton.tsx';
+import FreezeButton from './components/FreezeButton.tsx';
 import Treasury from './components/Treasury.tsx';
 import UserPoolWidget from './components/UserPoolWidget.tsx';
 import { HustleModal } from './components/HustleModal.tsx';
@@ -23,81 +28,14 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
-import clsx from 'clsx';
-import { PendingTweetsModal } from './components/PendingTweetsModal.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
-
-const modalStyles: Styles = {
-  overlay: {
-    backgroundColor: 'rgb(0, 0, 0, 75%)',
-    zIndex: 12,
-  },
-  content: {
-    top: '50%',
-    left: '50%',
-    right: 'auto',
-    bottom: 'auto',
-    marginRight: '-50%',
-    transform: 'translate(-50%, -50%)',
-    maxWidth: '56%',
-    maxHeight: '80vh',
-    overflowY: 'auto',
-    border: '10px solid rgb(23, 20, 33)',
-    borderRadius: '0',
-    background: 'rgb(35, 38, 58)',
-    color: 'white',
-    fontFamily: '"Upheaval Pro", "sans-serif"',
-  },
-};
-
-const SocialFeedModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const socialFeed = useQuery(api.world.getSocialFeed);
-
-  return (
-    <ReactModal
-      isOpen={isOpen}
-      onRequestClose={onClose}
-      style={modalStyles} // reuse styles from Home component
-      contentLabel="Social Feed Modal"
-      ariaHideApp={false}
-    >
-      <div className="font-body">
-        <h1 className="text-center text-5xl font-bold font-display game-title">Social Feed</h1>
-        <button onClick={onClose} className="absolute top-4 right-4"><img src={closeImg} className="w-6 h-6" /></button>
-        <div className="mt-4 overflow-y-auto max-h-[60vh] custom-scroll p-2">
-          {!socialFeed ? (
-            <p>Loading feed...</p>
-          ) : socialFeed.length === 0 ? (
-            <p className="text-center p-4">No tweets yet. It's quiet in AI Salvador!</p>
-          ) : (
-            socialFeed.map((tweet) => (
-              <div key={tweet._id.toString()} className="leading-tight mb-6">
-                <div className="flex gap-4 items-baseline">
-                  <span className="uppercase flex-grow font-bold">{tweet.authorName}</span>
-                  <time dateTime={tweet._creationTime.toString()} className="text-xs text-white/70">
-                    {new Date(tweet._creationTime).toLocaleString()}
-                  </time>
-                </div>
-                <div className={clsx('bubble')}>
-                  <p className="bg-white -mx-3 -my-1 text-black">{tweet.text}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </ReactModal>
-  );
-};
 
 export default function Home() {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [addNewsModalOpen, setAddNewsModalOpen] = useState(false);
-  const [socialModalOpen, setSocialModalOpen] = useState(false);
-  const [pendingTweetsModalOpen, setPendingTweetsModalOpen] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [helpTab, setHelpTab] = useState<HelpTab>('intro');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -357,14 +295,6 @@ export default function Home() {
       />
       <AboutModal isOpen={aboutModalOpen} onClose={() => setAboutModalOpen(false)} />
       <AddNewsModal isOpen={addNewsModalOpen} onClose={() => setAddNewsModalOpen(false)} />
-      <SocialFeedModal isOpen={socialModalOpen} onClose={() => setSocialModalOpen(false)} />
-      {worldId && (
-        <PendingTweetsModal
-          isOpen={pendingTweetsModalOpen}
-          onClose={() => setPendingTweetsModalOpen(false)}
-          worldId={worldId}
-        />
-      )}
 
       <div className="w-full flex-grow flex flex-col items-center justify-start p-1">
         {!isExpanded && <UserPoolWidget />}
@@ -410,9 +340,6 @@ export default function Home() {
             Share
           </Button>
           <InteractButton />
-          <Button onClick={() => setSocialModalOpen(true)} title="View the town's social media feed">
-            Social 🐦
-          </Button>
           <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>
@@ -457,9 +384,6 @@ export default function Home() {
               >
                 News 📰
               </Button>
-               <Button onClick={() => setPendingTweetsModalOpen(true)} title="Review pending tweets">
-                Tweets 审批
-              </Button>
             </>
           )}
         </div>
@@ -474,3 +398,27 @@ export default function Home() {
     </main>
   );
 }
+
+const modalStyles: Styles = {
+  overlay: {
+    backgroundColor: 'rgb(0, 0, 0, 75%)',
+    zIndex: 12,
+  },
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    maxWidth: '56%',
+    maxHeight: '80vh',
+    overflowY: 'auto' as CSSProperties['overflowY'],
+
+    border: '10px solid rgb(23, 20, 33)',
+    borderRadius: '0',
+    background: 'rgb(35, 38, 58)',
+    color: 'white',
+    fontFamily: '"Upheaval Pro", "sans-serif"',
+  },
+};

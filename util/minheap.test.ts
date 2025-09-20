@@ -1,7 +1,6 @@
-
 // Fix: Add imports for jest globals to fix typescript errors.
 import { describe, test, expect } from '@jest/globals';
-import { MinHeap } from '../convex/util/minheap';
+import { MinHeap } from './minheap';
 
 describe('MinHeap', () => {
   const compareNumbers = (a: number, b: number): boolean => a > b;

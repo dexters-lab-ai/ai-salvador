@@ -1,4 +1,3 @@
-
 // Fix: Add imports for jest globals to fix typescript errors.
 import { describe, test, expect } from '@jest/globals';
 import {
@@ -8,7 +7,7 @@ import {
   runLengthDecode,
   runLengthEncode,
   unquantize,
-} from '../convex/util/compression';
+} from './compression';
 
 describe('compression', () => {
   test('quantize (approximately) roundtrips', () => {

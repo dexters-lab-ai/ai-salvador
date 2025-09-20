@@ -1,12 +1,10 @@
-
 import { Graphics, Sprite, useTick } from '@pixi/react';
-import { Graphics as PixiGraphics, Ticker } from 'pixi.js';
+import { Graphics as PixiGraphics } from 'pixi.js';
 import { useState, useCallback } from 'react';
 
 export const PartyEffects = ({ isPartyActive, tileDim }: { isPartyActive: boolean; tileDim: number }) => {
   const [t, setT] = useState(0);
-  // useTick callback receives (delta: number, ticker: Ticker) in @pixi/react v7.1.0
-  useTick((delta: number) => {
+  useTick((delta) => {
     if (isPartyActive) {
       setT((prevT) => prevT + delta);
     }

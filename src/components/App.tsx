@@ -413,6 +413,7 @@ const modalStyles: Styles = {
     transform: 'translate(-50%, -50%)',
     maxWidth: '56%',
     maxHeight: '80vh',
+// Fix: The `overflowY` property is valid in CSS but might not be in the `CSSProperties` type for older React versions. Casting to `const` helps TypeScript accept it.
     overflowY: 'auto' as const,
 
     border: '10px solid rgb(23, 20, 33)',

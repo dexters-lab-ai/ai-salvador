@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Descriptions, characters as CharacterSheets } from '../../data/characters';
@@ -47,122 +46,259 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
   const [audioError, setAudioError] = useState<Error | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeTimer = useRef<number | null>(null);
+  const cleanupRef = useRef<() => void>();
+  const audioInitialized = useRef(false);
+  const handleCanPlayRef = useRef<() => void>();
+  const handleAudioErrorRef = useRef<(error: Error) => void>();
+  const effectRun = useRef(false);
+  const fadeOutAtRef = useRef<NodeJS.Timeout | null>(null);
 
-// Fix: Refactor useEffect to correctly handle audio playback, event listeners, and cleanup.
   useEffect(() => {
+    // Prevent multiple effect runs
+    if (effectRun.current) return;
+    effectRun.current = true;
+    
     if (cast.length === 0) {
       onDone?.();
       return;
     }
-
+    
+    // Reset state
     setIndex(0);
     setVisible(true);
 
-    const CHARACTER_DISPLAY_MS_INTERNAL = 5000;
-    const AUDIO_MIN_DURATION = 20000;
-    const FADE_OUT_MS = 2000;
-    const FADE_IN_MS = 2000;
-
-    let isMounted = true;
-    // Fix: Cannot find namespace 'NodeJS'.
-    let characterInterval: ReturnType<typeof setInterval> | null = null;
-    let endTimeout: ReturnType<typeof setTimeout> | null = null;
-    let fadeOutTimeout: ReturnType<typeof setTimeout> | null = null;
-    let currentIndex = 0;
-
+    // Timing constants - using module-level constant for consistency
+    const CHARACTER_DISPLAY_MS = 5000; // 5 seconds per character
+    const AUDIO_MIN_DURATION = 20000; // Minimum 20 seconds of audio
+    const FADE_OUT_MS = 2000; // 2 seconds fade out
+    const AUDIO_FADE_IN_MS = 2000; // 2 seconds fade in
+    
+    // Track state with refs to avoid dependency on React state in effects
+    const state = {
+      currentIndex: 0,
+      totalCharacters: cast.length,
+      characterInterval: null as NodeJS.Timeout | null,
+      endTimeout: null as NodeJS.Timeout | null,
+      fadeOutTimeout: null as NodeJS.Timeout | null,
+      isMounted: true,
+      effectRun: false
+    };
+    
+    // Show first character immediately
+    setIndex(0);
+    
+    // Function to advance to next character
     const showNextCharacter = () => {
-      if (!isMounted) return;
-      currentIndex++;
-      if (currentIndex < cast.length) {
-        setIndex(currentIndex);
-      } else if (characterInterval) {
-        clearInterval(characterInterval);
+      if (!state.isMounted) return;
+      
+      state.currentIndex++;
+      if (state.currentIndex < state.totalCharacters) {
+        setIndex(state.currentIndex);
+      } else {
+        // Reached the end, keep showing last character
+        if (state.characterInterval) {
+          clearInterval(state.characterInterval);
+          state.characterInterval = null;
+        }
       }
     };
-
-    if (cast.length > 1) {
-      characterInterval = setInterval(showNextCharacter, CHARACTER_DISPLAY_MS_INTERNAL);
+    
+    // Start character rotation if we have multiple characters
+    if (state.totalCharacters > 1) {
+      state.characterInterval = setInterval(showNextCharacter, CHARACTER_DISPLAY_MS);
     }
+    
+    // Calculate total duration based on max of character display or minimum audio time
+    const totalCharactersTime = state.totalCharacters * CHARACTER_DISPLAY_MS;
+    const totalDuration = Math.max(totalCharactersTime, AUDIO_MIN_DURATION) + FADE_OUT_MS;
 
-    const totalCharactersTime = cast.length * CHARACTER_DISPLAY_MS_INTERNAL;
-    const totalDuration = Math.max(totalCharactersTime, AUDIO_MIN_DURATION);
-
-    endTimeout = setTimeout(() => {
-      if (!isMounted) return;
+    // Set up the final timeout to end the credits
+    state.endTimeout = setTimeout(() => {
+      if (!state.isMounted) return;
+      
+      console.log('Ending credits sequence');
       setVisible(false);
-      if (characterInterval) clearInterval(characterInterval);
+      
+      // Clear the character rotation interval
+      if (state.characterInterval) {
+        clearInterval(state.characterInterval);
+        state.characterInterval = null;
+      }
+      
+      // Delay the onDone callback to allow for fade out
       setTimeout(() => {
-        if (isMounted) onDone?.();
+        if (state.isMounted) {
+          console.log('Calling onDone callback');
+          onDone?.();
+        }
       }, 1000);
     }, totalDuration);
+    
+    // Set up fade out for audio - only set this once at the end
+    if (state.fadeOutTimeout) clearTimeout(state.fadeOutTimeout);
+    state.fadeOutTimeout = setTimeout(() => {
+      if (audioRef.current && state.isMounted) {
+        console.log('Starting audio fade out at', Date.now());
+        fade(0, FADE_OUT_MS);
+      }
+    }, Math.max(0, totalDuration - FADE_OUT_MS));
+    
+    // Clear any existing fade out timers
+    if (fadeOutAtRef.current) {
+      clearTimeout(fadeOutAtRef.current);
+      fadeOutAtRef.current = null;
+    }
+    
+    console.log(`Credits started: ${state.totalCharacters} characters, ${CHARACTER_DISPLAY_MS}ms each, total: ${totalDuration}ms`);
 
+    // Initialize audio with longer duration to match character display
+    if (!audioInitialized.current && audioRef.current === null) {
+      const basePath = ((import.meta as any).env.BASE_URL || '').replace(/\/+$/, '');
+      const audioSrc = `${basePath}/assets/narcos.wav`;
+      const audio = new Audio(audioSrc);
+      
+      // Store handlers in refs for cleanup
+      const handleAudioError = (error: Error) => {
+        if (!state.isMounted) return;
+        console.error('Audio error:', error);
+        setAudioError(error);
+        setAudioLoaded(true);
+      };
+      
+      // Configure audio
+      audio.loop = true;
+      audio.volume = 0; // Start with volume 0 for fade in
+      audio.preload = 'auto';
+
+      const handleCanPlay = () => {
+        if (!state.isMounted) return;
+        
+        setAudioLoaded(true);
+        if (audioRef.current === audio) {
+          audio.play().catch(handleAudioError);
+          console.log('Audio started playing');
+          // Fade in audio
+          fade(0.7, AUDIO_FADE_IN_MS);
+        }
+      };
+
+      // Store handlers in refs for cleanup
+      handleAudioErrorRef.current = handleAudioError;
+      handleCanPlayRef.current = handleCanPlay;
+
+      audio.preload = 'auto';
+      audio.volume = 0;
+      audio.loop = true;
+      
+      // Set up event listeners with stored handlers
+      audio.addEventListener('canplaythrough', handleCanPlay, { once: true });
+      audio.addEventListener('error', () => handleAudioError(new Error(`Failed to load audio`)));
+      
+      audioRef.current = audio;
+      audio.load();
+      audioInitialized.current = true;
+    }
+    
     const fade = (target: number, duration: number) => {
       if (!audioRef.current) return;
-      const audio = audioRef.current;
-      const startVolume = audio.volume;
-      const delta = target - startVolume;
-      let startTime: number | null = null;
-
+      
+      const startVolume = Math.max(0, Math.min(1, audioRef.current.volume));
+      const targetVolume = Math.max(0, Math.min(1, target));
+      const delta = targetVolume - startVolume;
+      const startTime = performance.now();
+      
       const fadeStep = (timestamp: number) => {
-        if (!isMounted || !audioRef.current) return;
-        if (startTime === null) startTime = timestamp;
+        if (!audioRef.current) return;
+        
         const elapsed = timestamp - startTime;
-        const progress = Math.min(1, elapsed / duration);
-        audio.volume = Math.max(0, Math.min(1, startVolume + delta * progress));
+        const progress = Math.min(1, Math.max(0, elapsed / duration));
+        
+        // Calculate new volume with easing and clamp it
+        const easedProgress = 1 - Math.pow(1 - progress, 2); // Ease-out cubic
+        const newVolume = Math.max(0, Math.min(1, startVolume + delta * easedProgress));
+        
+        try {
+          if (audioRef.current) {
+            audioRef.current.volume = newVolume;
+          }
+        } catch (e) {
+          console.error('Error setting volume:', e);
+          return; // Stop the animation if there's an error
+        }
+        
+        // Continue fading if not complete
         if (progress < 1) {
           fadeTimer.current = requestAnimationFrame(fadeStep);
         } else {
-          if (target === 0) {
-            audio.pause();
-            audio.currentTime = 0;
+          fadeTimer.current = null;
+          
+          // If fading out, pause the audio when done
+          if (target === 0 && audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
           }
         }
       };
-      if (fadeTimer.current) cancelAnimationFrame(fadeTimer.current);
+      
+      // Start the fade animation
       fadeTimer.current = requestAnimationFrame(fadeStep);
     };
+    // Initial fade in - smoother and faster
+    fade(0.7, 1500);
+    
+    // Clear any existing fade out timers to prevent interference
+    if (fadeOutAtRef.current) {
+      clearTimeout(fadeOutAtRef.current);
+      fadeOutAtRef.current = null;
+    }
 
-    const handleAudioError = (error: Event | string) => {
-      if (!isMounted) return;
-      console.error('Audio error:', error);
-      setAudioError(new Error(typeof error === 'string' ? error : 'Audio playback failed'));
-      setAudioLoaded(true);
-    };
-
-    const handleCanPlay = () => {
-      if (!isMounted || !audioRef.current) return;
-      setAudioLoaded(true);
-      audioRef.current.play().catch(handleAudioError);
-      fade(0.7, FADE_IN_MS);
-    };
-
-    const audio = new Audio(`${((import.meta as any).env.BASE_URL || '').replace(/\/+$/, '')}/assets/narcos.wav`);
-    audio.loop = true;
-    audio.volume = 0;
-    audio.preload = 'auto';
-    audio.addEventListener('canplaythrough', handleCanPlay, { once: true });
-    audio.addEventListener('error', handleAudioError);
-    audioRef.current = audio;
-    audio.load();
-
-    fadeOutTimeout = setTimeout(() => {
-      if (isMounted) fade(0, FADE_OUT_MS);
-    }, totalDuration - FADE_OUT_MS);
-
-    return () => {
-      isMounted = false;
-      if (characterInterval) clearInterval(characterInterval);
-      if (endTimeout) clearTimeout(endTimeout);
-      if (fadeOutTimeout) clearTimeout(fadeOutTimeout);
-      if (fadeTimer.current) cancelAnimationFrame(fadeTimer.current);
+    // Cleanup function
+    const cleanup = () => {
+      if (!state.isMounted) return;
+      
+      console.log('Cleaning up credits component');
+      state.isMounted = false;
+      effectRun.current = false;
+      
+      // Clear all timeouts and intervals
+      if (state.characterInterval) {
+        clearInterval(state.characterInterval);
+        state.characterInterval = null;
+      }
+      if (state.endTimeout) {
+        clearTimeout(state.endTimeout);
+        state.endTimeout = null;
+      }
+      if (state.fadeOutTimeout) {
+        clearTimeout(state.fadeOutTimeout);
+        state.fadeOutTimeout = null;
+      }
+      
+      // Clean up audio
       if (audioRef.current) {
-        audioRef.current.removeEventListener('canplaythrough', handleCanPlay);
-        audioRef.current.removeEventListener('error', handleAudioError);
-        audioRef.current.pause();
-        audioRef.current = null;
+        try {
+          const audio = audioRef.current;
+          audio.pause();
+          audio.currentTime = 0;
+          if (handleCanPlayRef.current) {
+            audio.removeEventListener('canplaythrough', handleCanPlayRef.current);
+          }
+          if (handleAudioErrorRef.current) {
+            audio.removeEventListener('error', () => handleAudioErrorRef.current?.(new Error('Audio error')));
+          }
+          audioRef.current = null;
+        } catch (e) {
+          console.error('Error cleaning up audio:', e);
+        }
+      }
+      
+      // Clear any pending fade animations
+      if (fadeTimer.current) {
+        cancelAnimationFrame(fadeTimer.current);
+        fadeTimer.current = null;
       }
     };
-  }, [cast.length, onDone]);
+  }, [cast.length, onDone]); // Removed durationMs from dependencies to prevent re-runs
 
   const current = cast[index];
   const sheet = useMemo(() => {

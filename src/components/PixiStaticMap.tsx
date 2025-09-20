@@ -1,16 +1,15 @@
-import { Container, Sprite, AnimatedSprite as PixiAnimatedSprite } from '@pixi/react';
-import * as PIXI from 'pixi.js';
-import { WorldMap } from '../../convex/aiTown/worldMap';
-import { useMemo, useEffect, useState, memo } from 'react';
 
-// Animation configurations with direct paths
+import { PixiComponent, applyDefaultProps } from '@pixi/react';
+import * as PIXI from 'pixi.js';
+import { AnimatedSprite, WorldMap } from '../../convex/aiTown/worldMap';
 import * as campfire from '../../data/animations/campfire.json';
 import * as gentlesparkle from '../../data/animations/gentlesparkle.json';
 import * as gentlewaterfall from '../../data/animations/gentlewaterfall.json';
 import * as gentlesplash from '../../data/animations/gentlesplash.json';
 import * as windmill from '../../data/animations/windmill.json';
 
-const animations: Record<string, { spritesheet: any; url: string }> = {
+// Animation configurations with direct paths
+const animations = {
   'campfire.json': { spritesheet: campfire, url: '/assets/spritesheets/campfire.png' },
   'gentlesparkle.json': {
     spritesheet: gentlesparkle,
@@ -21,126 +20,119 @@ const animations: Record<string, { spritesheet: any; url: string }> = {
     url: '/assets/spritesheets/gentlewaterfall32.png',
   },
   'windmill.json': { spritesheet: windmill, url: '/assets/spritesheets/windmill.png' },
-  'gentlesplash.json': {
+  'gentlesplash.json': { 
     spritesheet: gentlesplash,
     url: '/assets/spritesheets/gentlewaterfall32.png',
   },
 };
 
-const StaticMapTiles = memo(({ map, textures }: { map: WorldMap; textures: PIXI.Texture[] }) => {
-  const sprites: JSX.Element[] = [];
-  const allLayers = [...map.bgTiles, ...map.objectTiles];
-  for (let layerIndex = 0; layerIndex < allLayers.length; layerIndex++) {
-    const layer = allLayers[layerIndex];
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const tileIndex = layer[x][y];
-        if (tileIndex !== -1 && textures[tileIndex]) {
-          sprites.push(
-            <Sprite
-              key={`tile-${layerIndex}-${x}-${y}`}
-              texture={textures[tileIndex]}
-              x={x * map.tileDim}
-              y={y * map.tileDim}
-              zIndex={layerIndex}
-            />,
-          );
-        }
-      }
-    }
-  }
-  return <>{sprites}</>;
-});
-StaticMapTiles.displayName = 'StaticMapTiles';
-
-const AnimatedMapSprites = memo(({ map }: { map: WorldMap }) => {
-  const [sheets, setSheets] = useState<Record<string, PIXI.Spritesheet | null>>({});
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadSheets = async () => {
-      const loadedSheets: Record<string, PIXI.Spritesheet | null> = {};
-      const sheetPromises = Object.entries(animations).map(async ([sheetName, animData]) => {
-        try {
-          const texture = await PIXI.Assets.load(animData.url);
-          const spritesheet = new PIXI.Spritesheet(texture.baseTexture, animData.spritesheet);
-          await spritesheet.parse();
-          loadedSheets[sheetName] = spritesheet;
-        } catch (e) {
-          console.error(`Failed to load spritesheet ${sheetName}`, e);
-          loadedSheets[sheetName] = null;
-        }
-      });
-      await Promise.all(sheetPromises);
-      if (isMounted) setSheets(loadedSheets);
-    };
-    loadSheets();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  return (
-    <>
-      {map.animatedSprites.map((spriteData, i) => {
-        const sheet = sheets[spriteData.sheet];
-        if (!sheet) return null;
-        const animation = sheet.animations[spriteData.animation];
-        if (!animation) return null;
-        return (
-          <PixiAnimatedSprite
-            key={`anim-${i}`}
-            textures={animation}
-            isPlaying={true}
-            animationSpeed={0.1}
-            x={spriteData.x}
-            y={spriteData.y}
-            width={spriteData.w}
-            height={spriteData.h}
-            zIndex={spriteData.layer}
-          />
-        );
-      })}
-    </>
-  );
-});
-AnimatedMapSprites.displayName = 'AnimatedMapSprites';
-
-export const PixiStaticMap = (props: { map: WorldMap; [k: string]: any }) => {
-  const { map, ...containerProps } = props;
-  const textures = useMemo(() => {
+export const PixiStaticMap = PixiComponent('StaticMap', {
+  create: (props: { map: WorldMap; [k: string]: any }) => {
+    const map = props.map;
+    const numxtiles = Math.floor(map.tileSetDimX / map.tileDim);
+    const numytiles = Math.floor(map.tileSetDimY / map.tileDim);
+    // Handle the tileset URL carefully to avoid double slashes
     let tilesetUrl = map.tileSetUrl;
+    // If the URL is relative and doesn't start with a slash, add one
     if (!tilesetUrl.startsWith('http') && !tilesetUrl.startsWith('/') && !tilesetUrl.startsWith('.')) {
       tilesetUrl = `/${tilesetUrl}`;
     }
-    const baseTexture = PIXI.BaseTexture.from(tilesetUrl, {
+    console.log('Loading tileset from:', tilesetUrl);
+        
+    const bt = PIXI.BaseTexture.from(tilesetUrl, {
       scaleMode: PIXI.SCALE_MODES.NEAREST,
     });
-    const textures: PIXI.Texture[] = [];
-    const numXTiles = Math.floor(map.tileSetDimX / map.tileDim);
-    const numYTiles = Math.floor(map.tileSetDimY / map.tileDim);
-    for (let y = 0; y < numYTiles; y++) {
-      for (let x = 0; x < numXTiles; x++) {
-        textures.push(
-          new PIXI.Texture(
-            baseTexture,
-            new PIXI.Rectangle(x * map.tileDim, y * map.tileDim, map.tileDim, map.tileDim),
-          ),
+
+    const tiles = [];
+    for (let x = 0; x < numxtiles; x++) {
+      for (let y = 0; y < numytiles; y++) {
+        tiles[x + y * numxtiles] = new PIXI.Texture(
+          bt,
+          new PIXI.Rectangle(x * map.tileDim, y * map.tileDim, map.tileDim, map.tileDim),
         );
       }
     }
-    return textures;
-  }, [map]);
+    const screenxtiles = map.bgTiles[0].length;
+    const screenytiles = map.bgTiles[0][0].length;
 
-  return (
-    <Container
-      {...containerProps}
-      sortableChildren={true}
-      interactive={true}
-      hitArea={new PIXI.Rectangle(0, 0, map.width * map.tileDim, map.height * map.tileDim)}
-    >
-      <StaticMapTiles map={map} textures={textures} />
-      <AnimatedMapSprites map={map} />
-    </Container>
-  );
-};
+    const container = new PIXI.Container();
+    const allLayers = [...map.bgTiles, ...map.objectTiles];
+
+    // blit bg & object layers of map onto canvas
+    for (let i = 0; i < screenxtiles * screenytiles; i++) {
+      const x = i % screenxtiles;
+      const y = Math.floor(i / screenxtiles);
+      const xPx = x * map.tileDim;
+      const yPx = y * map.tileDim;
+
+      // Add all layers of backgrounds.
+      for (const layer of allLayers) {
+        const tileIndex = layer[x][y];
+        // Some layers may not have tiles at this location.
+        if (tileIndex === -1) continue;
+        const ctile = new PIXI.Sprite(tiles[tileIndex]);
+        ctile.x = xPx;
+        ctile.y = yPx;
+        container.addChild(ctile);
+      }
+    }
+
+    // TODO: Add layers.
+    const spritesBySheet = new Map<string, AnimatedSprite[]>();
+    for (const sprite of map.animatedSprites) {
+      const sheet = sprite.sheet;
+      if (!spritesBySheet.has(sheet)) {
+        spritesBySheet.set(sheet, []);
+      }
+      spritesBySheet.get(sheet)!.push(sprite);
+    }
+    for (const [sheet, sprites] of spritesBySheet.entries()) {
+      const animation = (animations as any)[sheet];
+      if (!animation) {
+        console.error('Could not find animation', sheet);
+        continue;
+      }
+      const { spritesheet, url } = animation;
+      const texture = PIXI.BaseTexture.from(url, {
+        scaleMode: PIXI.SCALE_MODES.NEAREST,
+      });
+      const spriteSheet = new PIXI.Spritesheet(texture, spritesheet);
+      spriteSheet.parse().then(() => {
+        for (const sprite of sprites) {
+          const pixiAnimation = spriteSheet.animations[sprite.animation];
+          if (!pixiAnimation) {
+            console.error('Failed to load animation', sprite);
+            continue;
+          }
+          const pixiSprite = new PIXI.AnimatedSprite(pixiAnimation);
+          pixiSprite.animationSpeed = 0.1;
+          pixiSprite.autoUpdate = true;
+          pixiSprite.x = sprite.x;
+          pixiSprite.y = sprite.y;
+          pixiSprite.width = sprite.w;
+          pixiSprite.height = sprite.h;
+          container.addChild(pixiSprite);
+          pixiSprite.play();
+        }
+      });
+    }
+
+    container.x = 0;
+    container.y = 0;
+
+    // Set the hit area manually to ensure `pointerdown` events are delivered to this container.
+    container.interactive = true;
+    container.hitArea = new PIXI.Rectangle(
+      0,
+      0,
+      screenxtiles * map.tileDim,
+      screenytiles * map.tileDim,
+    );
+
+    return container;
+  },
+
+  applyProps: (instance, oldProps, newProps) => {
+    applyDefaultProps(instance, oldProps, newProps);
+  },
+});

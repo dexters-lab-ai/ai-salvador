@@ -1,6 +1,5 @@
-
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
-import { PixiGame } from './PixiGame';
+import PixiGame from './PixiGame.tsx';
 
 import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
@@ -44,11 +43,11 @@ export default function Game({
   const engineId = worldStatus?.engineId;
 
   const game = useServerGame(worldId);
-  // Fix: Correctly type viewportRef with Viewport from pixi-viewport and initialize.
-  const viewportRef = useRef<Viewport | undefined>(undefined);
+  // Fix: Correctly type viewportRef with Viewport from pixi-viewport.
+  const viewportRef = useRef<Viewport | undefined>();
 
   // Send a periodic heartbeat to our world to keep it alive.
-  useWorldHeartbeat(worldId);
+  useWorldHeartbeat();
 
   const worldState = useQuery(api.world.worldState, worldId ? { worldId } : 'skip');
   const { historicalTime, timeManager } = useHistoricalTime(worldState?.engine);

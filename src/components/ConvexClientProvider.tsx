@@ -22,7 +22,6 @@ const convex = new ConvexReactClient(convexUrl(), { unsavedChangesWarning: false
 
 export default function ConvexClientProvider({ children }: { children: ReactNode }) {
   return (
-    // Fix: Pass children as a prop to satisfy the component's type definition.
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
       {children}
     </ConvexProviderWithClerk>

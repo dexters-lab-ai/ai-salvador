@@ -1,7 +1,7 @@
 import { ObjectType, v } from 'convex/values';
 import { GameId, parseGameId } from './ids';
 import { agentId, conversationId, playerId } from './ids';
-import { SerializedPlayer, Player } from './player';
+import { serializedPlayer } from './player';
 import { Game } from './game';
 import {
   ACTION_TIMEOUT,
@@ -17,19 +17,17 @@ import {
   PLAYER_CONVERSATION_COOLDOWN,
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
-import { MutationCtx, internalQuery } from '../_generated/server';
+import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
 import { distance } from '../util/geometry';
 import { internal } from '../_generated/api';
 import { movePlayer, blocked } from './movement';
 import { insertInput } from './insertInput';
 import { inputHandler } from './inputHandler';
-import { Point } from '../util/types';
+import { Point, point } from '../util/types';
 import { Descriptions } from '../../data/characters';
-import { activity } from './player';
+import { Player, activity } from './player';
 import { Conversation, conversationInputs } from './conversation';
-import { AgentDescription, SerializedAgentDescription } from '../../src/shared/agentDescription';
-// Fix: Import `serializedPlayer` to resolve 'Cannot find name' error.
-import { serializedPlayer } from './player';
+import { AgentDescription } from './agentDescription';
 
 export class Agent {
   id: GameId<'agents'>;
@@ -38,7 +36,6 @@ export class Agent {
   lastConversation?: number;
   lastInviteAttempt?: number;
   nextPartyMoveTs?: number;
-  lastRepliedTwitterId?: string;
   // Cooldown to avoid spamming pathfinding during walkingOver.
   lastWalkingOverMoveAttempt?: number;
   inProgressOperation?: {
@@ -48,7 +45,7 @@ export class Agent {
   };
 
   constructor(serialized: SerializedAgent) {
-    const { id, lastConversation, lastInviteAttempt, inProgressOperation, nextPartyMoveTs, lastRepliedTwitterId } =
+    const { id, lastConversation, lastInviteAttempt, inProgressOperation, nextPartyMoveTs } =
       serialized;
     const playerId = parseGameId('players', serialized.playerId);
     this.id = parseGameId('agents', id);
@@ -61,7 +58,6 @@ export class Agent {
     this.lastInviteAttempt = lastInviteAttempt;
     this.nextPartyMoveTs = nextPartyMoveTs;
     this.inProgressOperation = inProgressOperation;
-    this.lastRepliedTwitterId = lastRepliedTwitterId;
   }
 
   tick(game: Game, now: number) {
@@ -197,7 +193,7 @@ export class Agent {
     // If we aren't doing an activity or moving, do something.
     // If we have been wandering but haven't thought about something to do for
     // a while, do something.
-    if (!conversation && !doingActivity && !player.pathfinding) {
+    if (!conversation && !doingActivity && (!player.pathfinding || !recentlyAttemptedInvite)) {
       this.startOperation(game, now, 'agentDoSomething', {
         worldId: game.worldId,
         player: player.serialize(),
@@ -446,7 +442,7 @@ export class Agent {
   startOperation(
     game: Game,
     now: number,
-    name: string,
+    name: keyof AgentOperations,
     args: Omit<FunctionArgs<any>, 'operationId'>,
   ) {
     if (this.inProgressOperation) {
@@ -456,9 +452,9 @@ export class Agent {
     }
     const operationId = game.allocId('operations');
     console.log(`Agent ${this.id} starting operation ${name} (${operationId})`);
-    game.scheduleOperation(name, { operationId, ...args });
+    game.scheduleOperation(name, { operationId, ...args } as any);
     this.inProgressOperation = {
-      name: name,
+      name,
       operationId,
       started: now,
     };
@@ -473,7 +469,6 @@ export class Agent {
       lastInviteAttempt: this.lastInviteAttempt,
       nextPartyMoveTs: this.nextPartyMoveTs,
       inProgressOperation: this.inProgressOperation,
-      lastRepliedTwitterId: this.lastRepliedTwitterId,
     };
   }
 }
@@ -485,7 +480,6 @@ export const serializedAgent = {
   lastConversation: v.optional(v.number()),
   lastInviteAttempt: v.optional(v.number()),
   nextPartyMoveTs: v.optional(v.number()),
-  lastRepliedTwitterId: v.optional(v.string()),
   inProgressOperation: v.optional(
     v.object({
       name: v.string(),
@@ -495,6 +489,8 @@ export const serializedAgent = {
   ),
 };
 export type SerializedAgent = ObjectType<typeof serializedAgent>;
+
+type AgentOperations = typeof internal.aiTown.agentOperations;
 
 export const agentInputs = {
   finishRememberConversation: inputHandler({
@@ -524,7 +520,7 @@ export const agentInputs = {
     args: {
       operationId: v.string(),
       agentId: v.id('agents'),
-      destination: v.optional(v.object({ x: v.number(), y: v.number() })),
+      destination: v.optional(point),
       invitee: v.optional(v.id('players')),
       activity: v.optional(activity),
       operation: v.optional(v.object({ name: v.string(), args: v.any() })),
@@ -560,7 +556,7 @@ export const agentInputs = {
         player.activity = args.activity;
       }
       if (args.operation) {
-        agent.startOperation(game, now, args.operation.name, args.operation.args);
+        agent.startOperation(game, now, args.operation.name as keyof AgentOperations, args.operation.args);
       }
       return null;
     },
@@ -604,18 +600,6 @@ export const agentInputs = {
       if (args.leaveConversation) {
         conversation.leave(game, now, player);
       }
-      return null;
-    },
-  }),
-  updateLastReplied: inputHandler({
-    args: {
-      agentId,
-      lastRepliedTwitterId: v.string(),
-    },
-    handler: (game, now, args) => {
-      const agent = game.world.agents.get(parseGameId('agents', args.agentId));
-      if (!agent) throw new Error(`Agent ${args.agentId} not found`);
-      agent.lastRepliedTwitterId = args.lastRepliedTwitterId;
       return null;
     },
   }),
@@ -668,16 +652,16 @@ export async function runAgentOperation(ctx: MutationCtx, operation: string, arg
   let reference;
   switch (operation) {
     case 'agentRememberConversation':
-      reference = internal.agent.operations.agentRememberConversation;
+      reference = internal.aiTown.agentOperations.agentRememberConversation;
       break;
     case 'agentGenerateMessage':
-      reference = internal.agent.operations.agentGenerateMessage;
+      reference = internal.aiTown.agentOperations.agentGenerateMessage;
       break;
     case 'agentDoSomething':
-      reference = internal.agent.operations.agentDoSomething;
+      reference = internal.aiTown.agentOperations.agentDoSomething;
       break;
     case 'agentReadNews':
-      reference = internal.agent.operations.agentReadNews;
+      reference = internal.aiTown.agentOperations.agentReadNews;
       break;
     case 'hustle':
       reference = internal.economy.hustle;
@@ -699,6 +683,35 @@ export async function runAgentOperation(ctx: MutationCtx, operation: string, arg
   }
   await ctx.scheduler.runAfter(0, reference, args);
 }
+
+export const agentSendMessage = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    conversationId,
+    agentId,
+    playerId,
+    text: v.string(),
+    messageUuid: v.string(),
+    leaveConversation: v.boolean(),
+    operationId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert('messages', {
+      conversationId: args.conversationId,
+      author: args.playerId,
+      text: args.text,
+      messageUuid: args.messageUuid,
+      worldId: args.worldId,
+    });
+    await insertInput(ctx, args.worldId, 'agentFinishSendingMessage', {
+      conversationId: args.conversationId,
+      agentId: args.agentId,
+      timestamp: Date.now(),
+      leaveConversation: args.leaveConversation,
+      operationId: args.operationId,
+    });
+  },
+});
 
 export const findConversationCandidate = internalQuery({
   args: {
@@ -725,7 +738,7 @@ export const findConversationCandidate = internalQuery({
           continue;
         }
       }
-      candidates.push({ id: otherPlayer.id, position: otherPlayer.position });
+      candidates.push({ id: otherPlayer.id, position });
     }
 
     // Sort by distance and take the nearest candidate.

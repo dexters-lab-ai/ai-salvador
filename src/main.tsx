@@ -1,3 +1,5 @@
+
+
 // This setting is needed to support the custom blend modes used in the lighting shader.
 // settings.PREFER_ENV = ENV.WEBGL2; // This is old Pixi.js v6 syntax. Modern versions default to WebGL2 if available.
 
@@ -19,7 +21,6 @@ if (!publishableKey) {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ClerkProvider publishableKey={publishableKey}>
-      {/* Fix: Pass Home component as children to satisfy the prop type. */}
       <ConvexClientProvider>
         <Home />
       </ConvexClientProvider>

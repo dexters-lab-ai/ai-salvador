@@ -1,13 +1,6 @@
-// Fix: Triple-slash directives must be at the top of a file.
-/// <reference types="vite/client" />
 
-// Fix: Add SVG module declaration
-declare module '*.svg' {
-  import React = require('react');
-  export const ReactComponent: React.FC<React.SVGProps<SVGSVGElement>>;
-  const src: string;
-  export default src;
-}
+
+/// <reference types="vite/client" />
 
 // Fix: Add SpeechRecognition types to window for broader browser support.
 interface Window {

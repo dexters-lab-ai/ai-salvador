@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { internalMutation, mutation, query } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { insertInput } from './aiTown/insertInput';
 import { conversationId, playerId } from './aiTown/ids';
 
@@ -55,36 +55,6 @@ export const writeMessage = mutation({
       conversationId: args.conversationId,
       playerId: args.playerId,
       timestamp: Date.now(),
-    });
-  },
-});
-
-export const agentWriteMessage = internalMutation({
-  args: {
-    worldId: v.id('worlds'),
-    conversationId,
-    messageUuid: v.string(),
-    playerId,
-    text: v.string(),
-    // for agentFinishSendingMessage
-    agentId: v.string(),
-    leaveConversation: v.boolean(),
-    operationId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.insert('messages', {
-      conversationId: args.conversationId,
-      author: args.playerId,
-      messageUuid: args.messageUuid,
-      text: args.text,
-      worldId: args.worldId,
-    });
-    await insertInput(ctx, args.worldId, 'agentFinishSendingMessage', {
-      conversationId: args.conversationId,
-      agentId: args.agentId,
-      timestamp: Date.now(),
-      operationId: args.operationId,
-      leaveConversation: args.leaveConversation,
     });
   },
 });

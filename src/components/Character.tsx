@@ -1,6 +1,4 @@
-
-import { Spritesheet } from 'pixi.js';
-import type { SpritesheetData } from '../../data/spritesheets/types';
+import { BaseTexture, ISpritesheetData, Spritesheet } from 'pixi.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatedSprite, Container, Graphics, Text } from '@pixi/react';
 import * as PIXI from 'pixi.js';
@@ -24,7 +22,7 @@ export const Character = ({
   // Path to the texture packed image.
   textureUrl: string;
   // The data for the spritesheet.
-  spritesheetData: SpritesheetData;
+  spritesheetData: ISpritesheetData;
   // The pose of the NPC.
   x: number;
   y: number;
@@ -49,7 +47,7 @@ export const Character = ({
     if (!spritesheetData) return;
     const parseSheet = async () => {
       const sheet = new Spritesheet(
-        PIXI.BaseTexture.from(textureUrl, {
+        BaseTexture.from(textureUrl, {
           scaleMode: PIXI.SCALE_MODES.NEAREST,
         }),
         spritesheetData,
@@ -75,6 +73,22 @@ export const Character = ({
   }, [direction, isMoving, isDancing]);
 
   if (!spriteSheet) return null;
+
+  let blockOffset = { x: 0, y: 0 };
+  switch (roundedOrientation) {
+    case 2:
+      blockOffset = { x: -20, y: 0 };
+      break;
+    case 0:
+      blockOffset = { x: 20, y: 0 };
+      break;
+    case 3:
+      blockOffset = { x: 0, y: -20 };
+      break;
+    case 1:
+      blockOffset = { x: 0, y: 20 };
+      break;
+  }
 
   return (
     <Container x={x} y={y} interactive={true} pointerdown={onClick} cursor="pointer">

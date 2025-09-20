@@ -1,4 +1,3 @@
-
 import clsx from 'clsx';
 import { useMutation, useQuery } from 'convex/react';
 import { KeyboardEvent, useRef, useState, useEffect } from 'react';
@@ -24,7 +23,7 @@ export function MessageInput({
   const humanName = descriptions?.playerDescriptions.find((p) => p.playerId === humanPlayer.id)
     ?.name;
   const inputRef = useRef<HTMLParagraphElement>(null);
-  const inflightUuid = useRef<string | undefined>(undefined);
+  const inflightUuid = useRef<string | undefined>();
   const writeMessage = useMutation(api.messages.writeMessage);
   const startTyping = useSendInput(engineId, 'startTyping');
   const currentlyTyping = conversation.isTyping;
@@ -58,8 +57,9 @@ export function MessageInput({
         setIsListening(false);
       };
       
-      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Speech recognition error:', event.error);
+      recognition.onerror = (event: Event) => {
+        const errorEvent = event as SpeechRecognitionErrorEvent;
+        console.error('Speech recognition error:', errorEvent.error);
         setIsListening(false);
       };
 

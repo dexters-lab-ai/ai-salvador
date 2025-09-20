@@ -1,4 +1,3 @@
-
 import { shuffle } from 'lodash';
 
 // Must end with slash so path joining preserves /v2.0

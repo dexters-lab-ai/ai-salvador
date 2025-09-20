@@ -1,4 +1,3 @@
-
 import { cronJobs } from 'convex/server';
 import { DELETE_BATCH_SIZE, IDLE_WORLD_TIMEOUT, VACUUM_MAX_AGE } from './constants';
 import { internal } from './_generated/api';
@@ -23,18 +22,6 @@ crons.interval(
 crons.interval('restart dead worlds', { seconds: 60 }, internal.world.restartDeadWorlds);
 
 crons.daily('vacuum old entries', { hourUTC: 4, minuteUTC: 20 }, internal.crons.vacuumOldEntries);
-
-crons.interval(
-  'syncTwitterTimeline',
-  { minutes: 10 },
-  internal.agent.twitter.syncTimeline,
-);
-
-crons.interval(
-  'read mentions and reply',
-  { minutes: 15 },
-  internal.agent.twitter.agentReadMentionsAndReply,
-);
 
 export default crons;
 
