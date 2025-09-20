@@ -1,17 +1,31 @@
-# Use Node.js LTS
+# Use Node.js LTS with Alpine base
 FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache git
+# Install system dependencies including Python and build tools
+RUN apk add --no-cache --update \
+    git \
+    python3 \
+    make \
+    g++ \
+    gcc \
+    py3-pip \
+    && ln -sf python3 /usr/bin/python
+
+# Set Python environment variables
+ENV PYTHON=/usr/bin/python3
+ENV PYTHONUNBUFFERED=1
 
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies (including devDependencies for development)
-RUN npm install
+# Install npm dependencies with legacy peer deps to avoid conflicts
+RUN npm config set python /usr/bin/python3 \
+    && npm config set unsafe-perm true \
+    && npm install -g npm@latest \
+    && npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -24,7 +38,8 @@ ARG VITE_CLERK_PUBLISHABLE_KEY
 ENV NODE_ENV=development \
     CHOKIDAR_USEPOLLING=true \
     VITE_CONVEX_URL=${VITE_CONVEX_URL} \
-    VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+    VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY} \
+    NPM_CONFIG_PYTHON=/usr/bin/python3
 
 # Expose port
 EXPOSE 3000
