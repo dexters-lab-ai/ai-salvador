@@ -22,18 +22,21 @@ COPY package*.json ./
 # Install dependencies with legacy peer deps
 RUN npm install --legacy-peer-deps
 
+# Create .convex directory and set up credentials
+RUN mkdir -p /root/.convex && \
+    echo '{"accessToken": "local-dev-token", "deploymentType": "dev"}' > /root/.convex/credentials.json
+
 # Copy source code
 COPY . .
-
-# Build-time arguments
-ARG VITE_CONVEX_URL
-ARG VITE_CLERK_PUBLISHABLE_KEY
 
 # Environment variables
 ENV NODE_ENV=development \
     CHOKIDAR_USEPOLLING=true \
-    VITE_CONVEX_URL=${VITE_CONVEX_URL} \
-    VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY} \
+    CI=true \
+    CONVEX_CLI_DISABLE_UPDATE_CHECK=true \
+    CONVEX_CLI_LOG_LEVEL=error \
+    VITE_CONVEX_URL=$VITE_CONVEX_URL \
+    VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY \
     NPM_CONFIG_PYTHON=/usr/bin/python3
 
 # Expose port
