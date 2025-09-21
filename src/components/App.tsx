@@ -299,9 +299,14 @@ export default function Home() {
         {!isExpanded && <UserPoolWidget />}
         {!isExpanded && (
           <div className="text-center">
-            <h1 className="relative mx-auto text-5xl sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-3 max-h-[100px] overflow-hidden">
-              <img src="/assets/spritesheets/volcano.png" alt="Volcano icon" className="h-36 w-36 sm:h-40 sm:w-40 animate-wiggle" />
-              <span className="swing-kebab">AI Town</span>
+            <h1 className="relative mx-auto text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-2 sm:gap-3 max-h-[60px] sm:max-h-[100px] overflow-hidden px-2">
+              <img 
+                src="/assets/spritesheets/volcano.png" 
+                alt="Volcano icon" 
+                className="h-10 w-10 sm:h-24 sm:w-24 md:h-32 md:w-32 lg:h-40 lg:w-40 animate-wiggle" 
+                style={{ minWidth: '40px' }}
+              />
+              <span className="swing-kebab text-3xl sm:text-5xl md:text-7xl lg:text-8xl">AI Town</span>
             </h1>
             <div className="mx-auto mt-2 text-center text-base sm:text-xl md:text-2xl text-white/95 leading-snug shadow-solid scale-hover whitespace-nowrap max-w-none">
               A virtual town where AI characters live, chat and socialize.
@@ -388,7 +393,7 @@ export default function Home() {
           )}
         </div>
         <Treasury compact={isExpanded} />
-        <a href="https://a16z.com" title="Forked, credit to a16z for original work">
+        <a href="https://a16z.com" title="Credit a16z for template. Based on research by https://arxiv.org/pdf/2304.03442.pdf">
           <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
         </a>
       </footer>
