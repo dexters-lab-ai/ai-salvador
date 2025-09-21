@@ -11,6 +11,11 @@ export default defineConfig({
     allowedHosts: ['ai-salvador.netlify.app', 'localhost', '127.0.0.1'],
     // Ensure assets are served from the correct path
     proxy: {},
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Permissions-Policy': 'autoplay=*, microphone=*',
+    },
   },
   build: {
     rollupOptions: {
