@@ -157,7 +157,7 @@ export default function Home() {
           ) : (
             <>
               <p className="mt-5 sm:mt-6 text-lg sm:text-xl md:text-2xl max-w-md md:max-w-2xl lg:max-w-3xl mx-auto leading-snug text-white/95 shadow-solid scale-hover">
-                Step into a bustling virtual town where the economy runs on BTC. As a tourist, you'll get some free BTC to start your adventure. Spend it, watch the town's treasury grow, and see how the AI citizens react to the highs and lows of the crypto market. Ready to dive in?
+                Step into a bustling virtual town where the economy runs on BTC. As a tourist, you'll get some free BTC to start your adventure. Spend it, watch the town's treasury grow, and see how the AI citizens adapt to a crypto world. Ready to dive in?
               </p>
               <Button onClick={() => setGameStarted(true)} className="mt-8 sm:mt-10 text-2xl sm:text-3xl px-6 sm:px-10 btn-pulse scale-hover">
                 Start Game
