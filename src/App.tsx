@@ -34,20 +34,33 @@ type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' |
 
 // Make App the default export
 export default function App() {
+  // Preload fonts for better performance
+  useEffect(() => {
+    // This will help with font loading in modern browsers
+    if ('fonts' in document) {
+      Promise.all([
+        document.fonts.load('1em "Upheaval Pro"'),
+        document.fonts.load('1em "VCR OSD Mono"')
+      ]).catch(console.error);
+    }
+  }, []);
+
   return (
-    <ErrorBoundary 
-      fallback={
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          height: '100vh',
-          backgroundColor: '#1a1a1a',
-          color: 'white',
-          padding: '20px',
-          textAlign: 'center'
-        }}>
+    <div className="font-display">
+      <ErrorBoundary 
+        fallback={
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            backgroundColor: '#1a1a1a',
+            color: 'white',
+            padding: '20px',
+            textAlign: 'center',
+            fontFamily: 'Upheaval Pro, sans-serif'
+          }}>
           <h2>Something went wrong</h2>
           <p>Please refresh the page or try again later.</p>
           <button 
@@ -68,6 +81,7 @@ export default function App() {
       }>
       <Home />
     </ErrorBoundary>
+  </div>
   );
 }
 
