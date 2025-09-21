@@ -28,6 +28,7 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
+import { PermissionRequestModal } from './components/PermissionRequestModal.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
@@ -127,6 +128,46 @@ function Home() {
     };
   }, [isChaseActive]);
 
+  useEffect(() => {
+    // Check if we've already asked for permissions
+    const hasRequestedPermissions = localStorage.getItem('hasRequestedAudioPermissions');
+    if (!hasRequestedPermissions) {
+      // Small delay to ensure the page has loaded
+      const timer = setTimeout(() => {
+        setShowPermissionModal(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  const handlePermissionGranted = () => {
+    localStorage.setItem('hasRequestedAudioPermissions', 'true');
+    setShowPermissionModal(false);
+    
+    // Resume audio context if it exists
+    const resumeAudioContext = async () => {
+      try {
+        if (window.audioContextManager) {
+          await window.audioContextManager.resume();
+          // Try to play a silent audio to unlock autoplay
+          const audio = new Audio();
+          audio.muted = true;
+          await audio.play().catch(console.log);
+          setTimeout(() => audio.remove(), 1000);
+        }
+      } catch (e) {
+        console.log('Audio context resume failed:', e);
+      }
+    };
+    
+    resumeAudioContext();
+  };
+
+  const handlePermissionDismiss = () => {
+    localStorage.setItem('hasRequestedAudioPermissions', 'true');
+    setShowPermissionModal(false);
+  };
+
   const handleShare = async () => {
     try {
       const canvas = document.querySelector('.game-frame canvas') as HTMLCanvasElement;
@@ -209,6 +250,8 @@ function Home() {
       </div>
     );
   }
+
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   return (
     <main className="relative flex h-screen flex-col items-center justify-between font-body game-background">
@@ -335,6 +378,12 @@ function Home() {
       />
       <AboutModal isOpen={aboutModalOpen} onClose={() => setAboutModalOpen(false)} />
       <AddNewsModal isOpen={addNewsModalOpen} onClose={() => setAddNewsModalOpen(false)} />
+      {showPermissionModal && (
+        <PermissionRequestModal
+          onGranted={handlePermissionGranted}
+          onDismiss={handlePermissionDismiss}
+        />
+      )}
 
       <div className="w-full flex-grow flex flex-col items-center justify-start p-1">
         {!isExpanded && <UserPoolWidget />}
