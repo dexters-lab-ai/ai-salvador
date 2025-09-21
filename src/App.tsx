@@ -9,7 +9,8 @@ import infoImg from '../assets/info.svg';
 // import { UserButton } from '@clerk/clerk-react';
 // import { Authenticated, Unauthenticated } from 'convex/react';
 // import LoginButton from './components/buttons/LoginButton.tsx';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { preloadFonts, handleFontLoading } from './utils/fontLoader';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
 import type { CSSProperties } from 'react';
@@ -28,7 +29,6 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
-import { PermissionRequestModal } from './components/PermissionRequestModal';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
@@ -97,9 +97,31 @@ function Home() {
 
   const [isChaseActive, setIsChaseActive] = useState(false);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
   const chaseAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Handle font loading state
   useEffect(() => {
+    const handleFontsReady = () => {
+      setFontsLoaded(true);
+      document.documentElement.classList.add('fonts-loaded');
+    };
+
+    // Check if fonts are already loaded
+    if (document.fonts) {
+      Promise.all([
+        document.fonts.load('1em Upheaval Pro'),
+        document.fonts.load('1em VCR OSD Mono')
+      ]).then(handleFontsReady)
+        .catch(() => setFontsLoaded(true)); // Fallback in case of errors
+    } else {
+      // Fallback for browsers that don't support Font Loading API
+      setFontsLoaded(true);
+    }
+
+    // Preload fonts for better performance
+    preloadFonts();
+
     if (!game) return;
     const chaseInProgress = [...game.world.players.values()].some(
       (p) =>
@@ -128,46 +150,6 @@ function Home() {
     };
   }, [isChaseActive]);
 
-  useEffect(() => {
-    // Check if we've already asked for permissions
-    const hasRequestedPermissions = localStorage.getItem('hasRequestedAudioPermissions');
-    if (!hasRequestedPermissions) {
-      // Small delay to ensure the page has loaded
-      const timer = setTimeout(() => {
-        setShowPermissionModal(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const handlePermissionGranted = () => {
-    localStorage.setItem('hasRequestedAudioPermissions', 'true');
-    setShowPermissionModal(false);
-    
-    // Resume audio context if it exists
-    const resumeAudioContext = async () => {
-      try {
-        if (window.audioContextManager) {
-          await window.audioContextManager.resume();
-          // Try to play a silent audio to unlock autoplay
-          const audio = new Audio();
-          audio.muted = true;
-          await audio.play().catch(console.log);
-          setTimeout(() => audio.remove(), 1000);
-        }
-      } catch (e) {
-        console.log('Audio context resume failed:', e);
-      }
-    };
-    
-    resumeAudioContext();
-  };
-
-  const handlePermissionDismiss = () => {
-    localStorage.setItem('hasRequestedAudioPermissions', 'true');
-    setShowPermissionModal(false);
-  };
-
   const handleShare = async () => {
     try {
       const canvas = document.querySelector('.game-frame canvas') as HTMLCanvasElement;
@@ -182,6 +164,29 @@ function Home() {
       console.error('Failed to capture screenshot:', error);
     }
   };
+
+  if (!fontsLoaded) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 z-50">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white mb-4">Loading fonts...</div>
+          <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 transition-all duration-500 ease-in-out"
+              style={{
+                width: '50%',
+                backgroundColor: '#3b82f6',
+                animation: 'pulse 1.5s ease-in-out infinite'
+              }}
+            ></div>
+          </div>
+          <p className="mt-4 text-sm text-gray-400">
+            Loading fonts for the best experience...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!gameStarted) {
     return (
@@ -250,8 +255,6 @@ function Home() {
       </div>
     );
   }
-
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   return (
     <main className="relative flex h-screen flex-col items-center justify-between font-body game-background">
@@ -378,12 +381,6 @@ function Home() {
       />
       <AboutModal isOpen={aboutModalOpen} onClose={() => setAboutModalOpen(false)} />
       <AddNewsModal isOpen={addNewsModalOpen} onClose={() => setAddNewsModalOpen(false)} />
-      {showPermissionModal && (
-        <PermissionRequestModal
-          onGranted={handlePermissionGranted}
-          onDismiss={handlePermissionDismiss}
-        />
-      )}
 
       <div className="w-full flex-grow flex flex-col items-center justify-start p-1">
         {!isExpanded && <UserPoolWidget />}
