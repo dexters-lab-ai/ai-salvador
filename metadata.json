@@ -3,5 +3,13 @@
   "description": "A virtual town where AI characters live, chat, socialize, hustle, HODL and party",
   "requestFramePermissions": [
     "microphone"
+  ],
+  "permissions": [
+    "autoplay",
+    "audio"
+  ],
+  "features": [
+    "Cross-Origin-Embedder-Policy: require-corp",
+    "Cross-Origin-Opener-Policy: same-origin"
   ]
 }
