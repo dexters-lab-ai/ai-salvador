@@ -80,13 +80,13 @@ export default function Treasury({ compact = false }: { compact?: boolean }) {
               <div className="mt-3">
                 <h4 className="font-semibold mb-1">Top Holders:</h4>
                 <div className="space-y-1 max-h-40 overflow-y-auto pr-2 text-xs sm:text-sm">
-                  {[...agentPortfolios]
+                  {[...(agentPortfolios || [])]
                     .sort((a, b) => b.btcBalance - a.btcBalance)
                     .slice(0, 5)
-                    .map((portfolio) => (
-                      <div key={portfolio.name} className="flex justify-between">
-                        <span className="truncate max-w-[60%] sm:max-w-[120px]">{portfolio.name}</span>
-                        <span className="font-mono">{portfolio.btcBalance.toFixed(4)} BTC</span>
+                    .map((agent, index) => (
+                      <div key={`${agent.name}-${index}`} className="flex justify-between">
+                        <span className="truncate max-w-[60%] sm:max-w-[120px]">{agent.name}</span>
+                        <span className="font-mono">{agent.btcBalance.toFixed(4)} BTC</span>
                       </div>
                     ))}
                 </div>

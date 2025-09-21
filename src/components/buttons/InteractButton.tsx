@@ -79,7 +79,7 @@ export default function InteractButton({ className = '' }: InteractButtonProps) 
     <Button 
       onClick={joinOrLeaveGame} 
       title="Leave the game"
-      className={`text-sm sm:text-base h-10 px-2 sm:px-3 ${className}`}
+      className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-red-600 hover:bg-red-700 ${className}`}
     >
       <span className="text-xs sm:text-sm">Leave</span>
     </Button>
@@ -88,7 +88,7 @@ export default function InteractButton({ className = '' }: InteractButtonProps) 
       imgUrl={interactImg} 
       onClick={joinOrLeaveGame} 
       title="Join the game as a tourist"
-      className={`text-sm sm:text-base h-10 px-2 sm:px-3 ${className}`}
+      className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-green-600 hover:bg-green-700 ${className}`}
       imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
     >
       <span className="text-xs sm:text-sm">Join</span>
@@ -98,10 +98,10 @@ export default function InteractButton({ className = '' }: InteractButtonProps) 
       <Button 
         imgUrl={interactImg} 
         title="Sign in to play"
-        className="text-sm sm:text-base h-10 px-2 sm:px-3 bg-blue-600 hover:bg-blue-700"
+        className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-blue-600 hover:bg-blue-700 ${className}`}
         imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
       >
-        <span className="text-xs sm:text-sm">Join</span>
+        <span className="text-xs sm:text-sm">Sign In</span>
       </Button>
     </SignInButton>
   );

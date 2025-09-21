@@ -386,14 +386,14 @@ function Home() {
         {!isExpanded && <UserPoolWidget />}
         {!isExpanded && (
           <div className="text-center">
-            <h1 className="relative mx-auto text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-2 sm:gap-3 max-h-[60px] sm:max-h-[100px] overflow-hidden px-2">
+            <h1 className="relative mx-auto text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-2 sm:gap-3 max-h-[80px] sm:max-h-[100px] overflow-hidden px-2">
               <img 
                 src="/assets/spritesheets/volcano.png" 
                 alt="Volcano icon" 
-                className="h-10 w-10 sm:h-24 sm:w-24 md:h-32 md:w-32 lg:h-40 lg:w-40 animate-wiggle" 
-                style={{ minWidth: '40px' }}
+                className="h-16 w-16 sm:h-36 sm:w-36 md:h-40 md:w-40 animate-wiggle" 
+                style={{ minWidth: '64px' }}
               />
-              <span className="swing-kebab text-3xl sm:text-5xl md:text-7xl lg:text-8xl">AI Town</span>
+              <span className="swing-kebab text-4xl sm:text-6xl md:text-8xl">AI Town</span>
             </h1>
             <div className="mx-auto mt-2 text-center text-base sm:text-xl md:text-2xl text-white/95 leading-snug shadow-solid scale-hover whitespace-nowrap max-w-none">
               A virtual town where AI characters live, chat and socialize.
@@ -426,8 +426,8 @@ function Home() {
       <footer
         className={
           !isExpanded
-            ? 'w-full flex items-center justify-center gap-2 p-1 flex-wrap pointer-events-none overflow-x-auto overflow-y-hidden py-2 max-w-full'
-            : 'fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center gap-2 p-1 pointer-events-none overflow-x-auto overflow-y-hidden py-2 max-w-full'
+            ? 'footer-compact w-full flex items-center justify-center p-1 pointer-events-none overflow-x-auto overflow-y-hidden py-2'
+            : 'footer-compact fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center p-1 pointer-events-none overflow-x-auto overflow-y-hidden py-2'
         }
       >
         <div className="flex gap-2 sm:gap-3 md:gap-4 flex-grow max-w-[100vw] sm:max-w-[1200px] items-center justify-start sm:justify-center px-2 pointer-events-auto">

@@ -6,7 +6,13 @@ import { api } from '../../convex/_generated/api';
 import { toast } from 'react-toastify';
 import { audioContextManager } from '../utils/audioContextManager';
 
-export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseActive: boolean, isPartyActive: boolean }) {
+interface MusicButtonProps {
+  isChaseActive: boolean;
+  isPartyActive: boolean;
+  className?: string;
+}
+
+export default function MusicButton({ isChaseActive, isPartyActive, className = '' }: MusicButtonProps) {
   const musicUrl = useQuery(api.music.getBackgroundMusic);
   const [userWantsMusic, setUserWantsMusic] = useState<boolean>(
     () => localStorage.getItem('musicOn') === '1',

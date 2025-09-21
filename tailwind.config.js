@@ -8,10 +8,6 @@ module.exports = {
     },
     extend: {
       colors: {
-        yellow: {
-          300: '#FCD34D', // text-yellow-300
-          400: '#FBBF24', // text-yellow-400
-        },
         brown: {
           100: '#FFFFFF',
           200: '#EAD4AA',

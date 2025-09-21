@@ -146,12 +146,7 @@ export default function Game({
         <div
           className="relative overflow-hidden bg-brown-900 cursor-pointer"
           ref={gameWrapperRef}
-          onClick={() => {
-            // Only allow expansion on desktop (lg breakpoint and up)
-            if (!isExpanded && window.innerWidth >= 1024) {
-              setIsExpanded(true);
-            }
-          }}
+          onClick={() => !isExpanded && setIsExpanded(true)}
         >
           {isExpanded && (
             <button

@@ -176,14 +176,13 @@ export default function MusicButton({ isChaseActive, isPartyActive, className = 
 
   return (
     <Button
-      className={`w-10 h-10 min-w-[40px] p-0 flex items-center justify-center ${className}`}
+      className="w-10 h-10 min-w-[40px] p-0 flex items-center justify-center"
       imgUrl={volumeImg}
       onClick={toggleMusic}
       title={isPlaying ? 'Pause music' : 'Play music'}
       imgClassName="w-5 h-5"
     >
-      {!isPlaying && <span className="sr-only">Play music</span>}
-      {isPlaying && <span className="sr-only">Pause music</span>}
+      <span className="sr-only">{isPlaying ? 'Pause music' : 'Play music'}</span>
     </Button>
   );
 }
