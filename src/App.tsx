@@ -28,10 +28,50 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
 
-export default function Home() {
+// Make App the default export
+export default function App() {
+  return (
+    <ErrorBoundary 
+      fallback={
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          backgroundColor: '#1a1a1a',
+          color: 'white',
+          padding: '20px',
+          textAlign: 'center'
+        }}>
+          <h2>Something went wrong</h2>
+          <p>Please refresh the page or try again later.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '20px',
+              padding: '10px 20px',
+              backgroundColor: '#4CAF50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Refresh Page
+          </button>
+        </div>
+      }>
+      <Home />
+    </ErrorBoundary>
+  );
+}
+
+function Home() {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
