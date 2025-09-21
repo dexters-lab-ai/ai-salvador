@@ -28,7 +28,7 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
-import { PermissionRequestModal } from './components/PermissionRequestModal.tsx';
+import { PermissionRequestModal } from './components/PermissionRequestModal';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
