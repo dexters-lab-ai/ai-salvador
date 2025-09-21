@@ -388,7 +388,7 @@ export default function Home() {
           )}
         </div>
         <Treasury compact={isExpanded} />
-        <a href="https://a16z.com" title="Credit a16z for template. Based on research by https://arxiv.org/pdf/2304.03442.pdf">
+        <a href="https://a16z.com" title="Forked, credit to a16z for original work">
           <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
         </a>
       </footer>

@@ -10,11 +10,7 @@ import { useCallback } from 'react';
 import { waitForInput } from '../../hooks/sendInput';
 import { useServerGame } from '../../hooks/serverGame';
 
-interface InteractButtonProps {
-  className?: string;
-}
-
-export default function InteractButton({ className = '' }: InteractButtonProps) {
+export default function InteractButton() {
   const { isAuthenticated } = useConvexAuth();
   const worldStatus = useQuery(api.world.defaultWorldStatus);
   const worldId = worldStatus?.worldId;
@@ -65,43 +61,22 @@ export default function InteractButton({ className = '' }: InteractButtonProps) 
   if (!isAuthenticated || game === undefined) {
     return (
       <SignInButton mode="modal">
-        <Button 
-          className="text-sm sm:text-base h-10 px-2 sm:px-3 bg-blue-600 hover:bg-blue-700"
-          imgUrl={interactImg}
-          imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-        >
-          <span className="text-xs sm:text-sm">Interact</span>
-        </Button>
+        <Button imgUrl={interactImg}>Interact</Button>
       </SignInButton>
     );
   }
   return isPlaying ? (
-    <Button 
-      onClick={joinOrLeaveGame} 
-      title="Leave the game"
-      className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-red-600 hover:bg-red-700 ${className}`}
-    >
-      <span className="text-xs sm:text-sm">Leave</span>
+    <Button onClick={joinOrLeaveGame} title="Leave the game">
+      Leave
     </Button>
   ) : isAuthenticated ? (
-    <Button 
-      imgUrl={interactImg} 
-      onClick={joinOrLeaveGame} 
-      title="Join the game as a tourist"
-      className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-green-600 hover:bg-green-700 ${className}`}
-      imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-    >
-      <span className="text-xs sm:text-sm">Join</span>
+    <Button imgUrl={interactImg} onClick={joinOrLeaveGame} title="Join the game as a tourist">
+      Join
     </Button>
   ) : (
     <SignInButton mode="modal">
-      <Button 
-        imgUrl={interactImg} 
-        title="Sign in to play"
-        className={`text-sm sm:text-base h-10 px-2 sm:px-3 bg-blue-600 hover:bg-blue-700 ${className}`}
-        imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-      >
-        <span className="text-xs sm:text-sm">Sign In</span>
+      <Button imgUrl={interactImg} title="Sign in to play">
+        Join
       </Button>
     </SignInButton>
   );

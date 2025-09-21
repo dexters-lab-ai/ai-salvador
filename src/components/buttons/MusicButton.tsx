@@ -5,13 +5,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'react-toastify';
 
-interface MusicButtonProps {
-  isChaseActive: boolean;
-  isPartyActive: boolean;
-  className?: string;
-}
-
-export default function MusicButton({ isChaseActive, isPartyActive, className = '' }: MusicButtonProps) {
+export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseActive: boolean, isPartyActive: boolean }) {
   const musicUrl = useQuery(api.music.getBackgroundMusic);
   const [userWantsMusic, setUserWantsMusic] = useState<boolean>(
     () => localStorage.getItem('musicOn') === '1',
@@ -170,19 +164,16 @@ export default function MusicButton({ isChaseActive, isPartyActive, className = 
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleKeyPress]);
 
-  const toggleMusic = () => {
-    void flipSwitch();
-  };
-
   return (
-    <Button
-      className="w-10 h-10 min-w-[40px] p-0 flex items-center justify-center"
-      imgUrl={volumeImg}
-      onClick={toggleMusic}
-      title={isPlaying ? 'Pause music' : 'Play music'}
-      imgClassName="w-5 h-5"
-    >
-      <span className="sr-only">{isPlaying ? 'Pause music' : 'Play music'}</span>
-    </Button>
+    <>
+      <Button
+        onClick={() => void flipSwitch()}
+        className="hidden lg:block"
+        title="Play AI generated music (press m to play/mute)"
+        imgUrl={volumeImg}
+      >
+        {userWantsMusic ? 'Mute' : 'Music'}
+      </Button>
+    </>
   );
 }

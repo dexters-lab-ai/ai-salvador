@@ -9,8 +9,7 @@ import infoImg from '../assets/info.svg';
 // import { UserButton } from '@clerk/clerk-react';
 // import { Authenticated, Unauthenticated } from 'convex/react';
 // import LoginButton from './components/buttons/LoginButton.tsx';
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { preloadFonts, handleFontLoading } from './utils/fontLoader';
+import { useState, useEffect, useRef } from 'react';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
 import type { CSSProperties } from 'react';
@@ -97,31 +96,9 @@ function Home() {
 
   const [isChaseActive, setIsChaseActive] = useState(false);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
-  const [fontsLoaded, setFontsLoaded] = useState(false);
   const chaseAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Handle font loading state
   useEffect(() => {
-    const handleFontsReady = () => {
-      setFontsLoaded(true);
-      document.documentElement.classList.add('fonts-loaded');
-    };
-
-    // Check if fonts are already loaded
-    if (document.fonts) {
-      Promise.all([
-        document.fonts.load('1em Upheaval Pro'),
-        document.fonts.load('1em VCR OSD Mono')
-      ]).then(handleFontsReady)
-        .catch(() => setFontsLoaded(true)); // Fallback in case of errors
-    } else {
-      // Fallback for browsers that don't support Font Loading API
-      setFontsLoaded(true);
-    }
-
-    // Preload fonts for better performance
-    preloadFonts();
-
     if (!game) return;
     const chaseInProgress = [...game.world.players.values()].some(
       (p) =>
@@ -164,29 +141,6 @@ function Home() {
       console.error('Failed to capture screenshot:', error);
     }
   };
-
-  if (!fontsLoaded) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 z-50">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-white mb-4">Loading fonts...</div>
-          <div className="w-64 h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-blue-500 transition-all duration-500 ease-in-out"
-              style={{
-                width: '50%',
-                backgroundColor: '#3b82f6',
-                animation: 'pulse 1.5s ease-in-out infinite'
-              }}
-            ></div>
-          </div>
-          <p className="mt-4 text-sm text-gray-400">
-            Loading fonts for the best experience...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   if (!gameStarted) {
     return (
@@ -386,14 +340,9 @@ function Home() {
         {!isExpanded && <UserPoolWidget />}
         {!isExpanded && (
           <div className="text-center">
-            <h1 className="relative mx-auto text-4xl sm:text-6xl md:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-2 sm:gap-3 max-h-[80px] sm:max-h-[100px] overflow-hidden px-2">
-              <img 
-                src="/assets/spritesheets/volcano.png" 
-                alt="Volcano icon" 
-                className="h-16 w-16 sm:h-36 sm:w-36 md:h-40 md:w-40 animate-wiggle" 
-                style={{ minWidth: '64px' }}
-              />
-              <span className="swing-kebab text-4xl sm:text-6xl md:text-8xl">AI Town</span>
+            <h1 className="relative mx-auto text-5xl sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title w-full text-left sm:text-center sm:w-auto flex items-center justify-center gap-3 max-h-[100px] overflow-hidden">
+              <img src="/assets/spritesheets/volcano.png" alt="Volcano icon" className="h-36 w-36 sm:h-40 sm:w-40 animate-wiggle" />
+              <span className="swing-kebab">AI Town</span>
             </h1>
             <div className="mx-auto mt-2 text-center text-base sm:text-xl md:text-2xl text-white/95 leading-snug shadow-solid scale-hover whitespace-nowrap max-w-none">
               A virtual town where AI characters live, chat and socialize.
@@ -405,13 +354,8 @@ function Home() {
           className={
             isExpanded
               ? 'w-full flex-grow relative flex items-start justify-center'
-              : 'w-full flex-grow relative flex items-center justify-center max-h-[800px] sm:max-h-[800px] md:max-h-[800px] lg:max-h-[800px] xl:max-h-[800px] 2xl:max-h-[800px]'
+              : 'w-full flex-grow relative flex items-center justify-center max-h-[800px]'
           }
-          style={{
-            maxWidth: '100vw',
-            margin: '0 auto',
-            height: isExpanded ? '100%' : 'calc(100vh - 200px)', // Adjust height to account for header/footer
-          }}
         >
           <Game
             isExpanded={isExpanded}
@@ -426,36 +370,20 @@ function Home() {
       <footer
         className={
           !isExpanded
-            ? 'footer-compact w-full flex items-center justify-center p-1 pointer-events-none overflow-x-auto overflow-y-hidden py-2'
-            : 'footer-compact fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center p-1 pointer-events-none overflow-x-auto overflow-y-hidden py-2'
+            ? 'footer-compact w-full flex items-center justify-center gap-2 p-1 flex-wrap pointer-events-none'
+            : 'footer-compact fixed bottom-0 left-0 right-0 z-40 flex items-center justify-center gap-2 p-1 pointer-events-none'
         }
       >
-        <div className="flex gap-2 sm:gap-3 md:gap-4 flex-grow max-w-[100vw] sm:max-w-[1200px] items-center justify-start sm:justify-center px-2 pointer-events-auto">
-          <MusicButton isChaseActive={isChaseActive} isPartyActive={isPartyActive} className="h-10 w-10 min-w-[40px]" />
-          <Button 
-            imgUrl={shareImg} 
-            onClick={handleShare} 
-            title="Share"
-            className="text-sm sm:text-base h-10 px-2 sm:px-3"
-            imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-          >
+        <div className="flex gap-4 flex-grow max-w-[1200px] items-center justify-center pointer-events-none">
+          <MusicButton isChaseActive={isChaseActive} isPartyActive={isPartyActive} />
+          <Button imgUrl={shareImg} onClick={handleShare} title="Share">
             Share
           </Button>
-          <InteractButton className="h-10 px-2 sm:px-3 text-sm sm:text-base" />
-          <Button 
-            imgUrl={helpImg} 
-            onClick={() => setHelpModalOpen(true)}
-            className="text-sm sm:text-base h-10 px-2 sm:px-3"
-            imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-          >
+          <InteractButton />
+          <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>
-          <Button 
-            imgUrl={infoImg} 
-            onClick={() => setAboutModalOpen(true)}
-            className="text-sm sm:text-base h-10 px-2 sm:px-3"
-            imgClassName="h-4 w-4 sm:h-5 sm:w-5 mr-1"
-          >
+          <Button imgUrl={infoImg} onClick={() => setAboutModalOpen(true)}>
             About
           </Button>
           {isAdmin && worldStatus && (
@@ -463,46 +391,44 @@ function Home() {
               <Button
                 onClick={() => triggerChase({ worldId: worldStatus.worldId })}
                 title="Trigger ICE vs MS-13 chase"
-                className={`text-sm sm:text-base h-10 px-2 sm:px-3 ${isChaseActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={isChaseActive ? 'opacity-50 cursor-not-allowed' : ''}
               >
-                <span className="text-xs sm:text-sm">Chase</span> 🚨
+                Chase 🚨
               </Button>
               <Button
                 onClick={() => gatherAll({ worldId: worldStatus.worldId })}
                 title="Gather all agents for a town meeting"
-                className={`text-sm sm:text-base h-10 px-2 sm:px-3 ${isMeetingActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={isMeetingActive ? 'opacity-50 cursor-not-allowed' : ''}
               >
-                <span className="text-xs sm:text-sm">Meeting</span> 🧑‍🏫
+                Meeting 🧑‍🏫
               </Button>
               {isPartyActive ? (
                 <Button
                   onClick={() => stopParty({ worldId: worldStatus.worldId })}
                   title="End the current party"
-                  className="text-sm sm:text-base h-10 px-2 sm:px-3 bg-red-600 hover:bg-red-700"
+                  className={'bg-red-500 hover:bg-red-600'}
                 >
-                  <span className="text-xs sm:text-sm">Stop</span> 🎉
+                  Stop 🎉
                 </Button>
               ) : (
                 <Button
                   onClick={() => triggerParty({ worldId: worldStatus.worldId })}
                   title="Gather all agents for a party"
-                  className="text-sm sm:text-base h-10 px-2 sm:px-3 bg-purple-600 hover:bg-purple-700"
                 >
-                  <span className="text-xs sm:text-sm">Party!</span> 🎉
+                  Party! 🎉
                 </Button>
               )}
               <Button
                 onClick={() => setAddNewsModalOpen(true)}
                 title="Add news article"
-                className="text-sm sm:text-base h-10 px-2 sm:px-3 bg-blue-600 hover:bg-blue-700"
               >
-                <span className="text-xs sm:text-sm">News</span> 📰
+                News 📰
               </Button>
             </>
           )}
         </div>
         <Treasury compact={isExpanded} />
-        <a href="https://a16z.com" title="Credit a16z for template. Based on research by https://arxiv.org/pdf/2304.03442.pdf">
+        <a href="https://a16z.com" title="Forked, credit to a16z for original work">
           <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
         </a>
       </footer>

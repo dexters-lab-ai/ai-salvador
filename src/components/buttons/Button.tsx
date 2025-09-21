@@ -8,7 +8,6 @@ export default function Button(props: {
   onClick?: MouseEventHandler;
   title?: string;
   children: ReactNode;
-  imgClassName?: string;
 }) {
   return (
     <a
@@ -23,13 +22,7 @@ export default function Button(props: {
       <div className="inline-block bg-clay-700">
         <span>
           <div className="inline-flex h-full items-center gap-4">
-            {props.imgUrl && (
-              <img 
-                className={props.imgClassName || "w-4 h-4 sm:w-5 sm:h-5 mr-1"} 
-                src={props.imgUrl} 
-                alt=""
-              />
-            )}
+            {props.imgUrl && <img className="w-4 h-4 sm:w-[30px] sm:h-[30px]" src={props.imgUrl} />}
             {props.children}
           </div>
         </span>
