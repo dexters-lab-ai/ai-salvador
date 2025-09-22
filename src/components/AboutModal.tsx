@@ -9,20 +9,24 @@ const modalStyles: ReactModal.Styles = {
   overlay: {
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
     zIndex: 50,
+    padding: '0',
+    margin: '0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
-    top: '50%',
-    left: '50%',
-    right: 'auto',
-    bottom: 'auto',
-    transform: 'translate(-50%, -50%)',
+    position: 'relative',
+    inset: '0',
     border: 'none',
     background: 'transparent',
+    width: '95%',
+    minWidth: '1200px',
+    maxWidth: '1600px',
+    height: '90vh',
+    margin: '0',
     padding: '0',
-    width: '90%',
-    maxWidth: '1200px',
-    maxHeight: '90vh',
-    overflow: 'auto',
+    overflow: 'visible',
   },
 };
 
@@ -51,7 +55,16 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       contentLabel="About AI Salvador"
       ariaHideApp={false}
     >
-      <div className="w-full relative bg-gray-900/90 backdrop-blur-sm rounded-xl border border-white/10 shadow-2xl p-6 sm:p-8 overflow-auto max-h-[90vh]">
+      <div className="w-full h-full relative bg-gray-900/80 backdrop-blur-lg rounded-xl border-2 border-white/20 shadow-2xl p-6 sm:p-10 overflow-y-auto" style={{
+        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.9), rgba(31, 41, 55, 0.9))',
+        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        width: '100%',
+        maxWidth: '100%',
+        margin: '0',
+        padding: '2rem'
+      }}>
         <div
           className="absolute inset-0 z-0"
           style={{
@@ -69,11 +82,11 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
           <img src={closeImg} alt="Close" className="w-8 h-8" />
         </button>
 
-        <div className="relative z-10 text-center text-white w-full max-w-5xl">
-          <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold font-display game-title">
+        <div className="relative z-10 text-center text-white w-full">
+          <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold font-display game-title text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300">
             AI Salvador
           </h1>
-          <h2 className="mt-8 text-2xl sm:text-3xl font-display text-white/80 tracking-widest">
+          <h2 className="mt-8 text-2xl sm:text-3xl font-display text-white tracking-widest font-bold">
             Starring
           </h2>
 
@@ -93,10 +106,11 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
               return (
                 <div key={agent.name} className="flex flex-col items-center text-center w-28">
                   <div 
-                    className="bg-black/40 border border-white/20 backdrop-blur-sm rounded-full shadow-2xl overflow-hidden flex items-center justify-center"
+                    className="bg-gradient-to-br from-amber-100/10 to-amber-200/20 border-2 border-amber-200/30 backdrop-blur-md rounded-full shadow-2xl overflow-hidden flex items-center justify-center transition-all duration-300 hover:scale-105 hover:shadow-amber-200/20"
                     style={{
-                      width: frontFrame ? frontFrame.w * 2 : 96,
-                      height: frontFrame ? frontFrame.h * 2 : 96,
+                      width: frontFrame ? frontFrame.w * 2.2 : 105,
+                      height: frontFrame ? frontFrame.h * 2.2 : 105,
+                      boxShadow: '0 0 20px rgba(253, 230, 138, 0.2)',
                     }}
                   >
                     {frame && spriteUrl && (
@@ -115,9 +129,9 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                       />
                     )}
                   </div>
-                  <span className="mt-3 font-bold text-lg leading-tight agent-name-plate">
+                  <div className="mt-3 text-base font-bold bg-gradient-to-r from-amber-200 to-yellow-300 text-transparent bg-clip-text">
                     {agent.name}
-                  </span>
+                  </div>
                 </div>
               );
             })}
@@ -126,6 +140,54 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
           <p className="mt-12 text-lg sm:text-xl md:text-2xl text-white/90 italic max-w-3xl mx-auto">
             "A virtual town where AI characters live, chat, socialize, hustle, HODL and party."
           </p>
+        </div>
+
+        {/* Contract Address Section */}
+        <div className="mt-16 mb-8 w-[400px] mx-auto p-6 rounded-xl bg-gradient-to-r from-amber-900/40 to-amber-800/30 border border-amber-600/40 backdrop-blur-md shadow-lg">
+          <div className="flex flex-col items-center">
+            <div className="w-full">
+              <div className="flex items-center gap-3">
+                <span className="text-amber-300 font-bold text-lg">CA: </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-amber-100 font-mono text-sm sm:text-base break-words leading-relaxed">
+                    0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+                  </span>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    navigator.clipboard.writeText('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef');
+                    const button = e.currentTarget;
+                    const tooltip = button.nextElementSibling as HTMLElement;
+                    tooltip.classList.remove('opacity-0', 'invisible');
+                    setTimeout(() => {
+                      tooltip.classList.add('opacity-0', 'invisible');
+                    }, 2000);
+                  }}
+                  className="flex-shrink-0 p-2 rounded-full bg-amber-900/50 hover:bg-amber-800/70 transition-colors group relative"
+                  aria-label="Copy to clipboard"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-amber-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 invisible transition-all duration-200 group-hover:opacity-100 group-hover:visible">
+                    Copy to clipboard
+                  </span>
+                </button>
+              </div>
+            </div>
+            
+            <a 
+              href="https://x.com/ai_town_meme" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center text-amber-200 hover:text-amber-100 transition-colors"
+            >
+              <span className="mr-2">Follow us on</span>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+              </svg>
+            </a>
+          </div>
         </div>
       </div>
     </ReactModal>
