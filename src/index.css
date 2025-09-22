@@ -44,11 +44,15 @@
 
 /* Custom scrollbar for mobile */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
+
 .no-scrollbar::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;
+  /* Chrome, Safari and Opera */
   width: 0;
   height: 0;
 }
@@ -132,10 +136,6 @@ h3,
 h4,
 h5,
 h6,
-p,
-span,
-div,
-a,
 button {
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
   -webkit-font-smoothing: antialiased;
