@@ -12,20 +12,18 @@ export default function Button(props: {
   return (
     <a
       className={clsx(
-        'button text-white shadow-solid text-xl pointer-events-auto',
+        'button text-white shadow-solid pointer-events-auto text-xs',
         props.className,
       )}
       href={props.href}
       title={props.title}
       onClick={props.onClick}
     >
-      <div className="inline-block bg-clay-700">
-        <span>
-          <div className="inline-flex h-full items-center gap-4">
-            {props.imgUrl && <img className="w-4 h-4 sm:w-[30px] sm:h-[30px]" src={props.imgUrl} />}
-            {props.children}
-          </div>
-        </span>
+      <div className="inline-block bg-clay-700 px-1.5 py-0.5">
+        <div className="flex items-center gap-1">
+          {props.imgUrl && <img className="w-3 h-3" src={props.imgUrl} />}
+          <span>{props.children}</span>
+        </div>
       </div>
     </a>
   );

@@ -175,10 +175,31 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
         
         setAudioLoaded(true);
         if (audioRef.current === audio) {
-          audio.play().catch(handleAudioError);
-          console.log('Audio started playing');
-          // Fade in audio
-          fade(0.7, AUDIO_FADE_IN_MS);
+          // Only start playing if the user has already interacted with the page
+          const playAudio = () => {
+            audio.play().then(() => {
+              console.log('Audio started playing');
+              // Fade in audio
+              fade(0.7, AUDIO_FADE_IN_MS);
+            }).catch(handleAudioError);
+          };
+          
+          // If the page has already received some user interaction, play immediately
+          if (document.visibilityState === 'visible' && document.hasFocus()) {
+            playAudio();
+          } else {
+            // Otherwise, wait for user interaction
+            const playOnInteraction = () => {
+              document.removeEventListener('click', playOnInteraction);
+              document.removeEventListener('keydown', playOnInteraction);
+              document.removeEventListener('touchstart', playOnInteraction);
+              playAudio();
+            };
+            
+            document.addEventListener('click', playOnInteraction, { once: true });
+            document.addEventListener('keydown', playOnInteraction, { once: true });
+            document.addEventListener('touchstart', playOnInteraction, { once: true });
+          }
         }
       };
 

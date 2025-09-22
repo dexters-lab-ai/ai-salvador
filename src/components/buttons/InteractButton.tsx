@@ -60,24 +60,28 @@ export default function InteractButton() {
   };
   if (!isAuthenticated || game === undefined) {
     return (
-      <SignInButton mode="modal">
-        <Button imgUrl={interactImg}>Interact</Button>
-      </SignInButton>
+      <div className="text-xs sm:text-sm">
+        <SignInButton mode="modal">
+          <Button imgUrl={interactImg}>Interact</Button>
+        </SignInButton>
+      </div>
     );
   }
   return isPlaying ? (
-    <Button onClick={joinOrLeaveGame} title="Leave the game">
+    <Button onClick={joinOrLeaveGame} title="Leave the game" className="text-xs sm:text-sm">
       Leave
     </Button>
   ) : isAuthenticated ? (
-    <Button imgUrl={interactImg} onClick={joinOrLeaveGame} title="Join the game as a tourist">
+    <Button imgUrl={interactImg} onClick={joinOrLeaveGame} title="Join the game as a tourist" className="text-xs sm:text-sm">
       Join
     </Button>
   ) : (
-    <SignInButton mode="modal">
-      <Button imgUrl={interactImg} title="Sign in to play">
-        Join
-      </Button>
-    </SignInButton>
+    <div className="text-xs sm:text-sm">
+      <SignInButton mode="modal">
+        <Button imgUrl={interactImg} title="Sign in to play">
+          Join
+        </Button>
+      </SignInButton>
+    </div>
   );
 }

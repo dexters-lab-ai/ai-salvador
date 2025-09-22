@@ -144,9 +144,16 @@ export default function Game({
       >
         {/* Game area */}
         <div
-          className="relative overflow-hidden bg-brown-900 cursor-pointer"
+          className="relative overflow-hidden bg-brown-900"
           ref={gameWrapperRef}
-          onClick={() => !isExpanded && setIsExpanded(true)}
+          onClick={(e) => {
+            // Only allow expansion on desktop (sm breakpoint and up)
+            if (window.innerWidth >= 640 && !isExpanded) {
+              e.stopPropagation();
+              setIsExpanded(true);
+            }
+          }}
+          style={{ cursor: window.innerWidth >= 640 ? 'pointer' : 'default' }}
         >
           {isExpanded && (
             <button
