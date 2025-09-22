@@ -155,6 +155,7 @@ export default function UserPoolWidget() {
     <div
       className="pointer-events-auto bg-brown-800 text-white rounded-lg shadow-lg transition-all duration-300 z-50 relative"
       style={{ width: isExpanded ? (window.innerWidth >= 640 ? 260 : 'calc(100% - 1rem)') : undefined }}
+      onClick={() => setIsExpanded(true)}
     >
       {isExpanded && (
         <button
@@ -171,7 +172,7 @@ export default function UserPoolWidget() {
       {/* Desktop (sm and up): original horizontal expanded layout */}
       <div 
         className={`hidden sm:flex items-center ${isExpanded ? 'p-3' : 'sm:p-2'}`}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={(e) => e.stopPropagation()}
       >
         {!isExpanded && (
           <div className="w-12 h-12 flex items-center justify-center">

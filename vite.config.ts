@@ -7,6 +7,9 @@ import type { PreRenderedAsset } from 'rollup';
 // https://vitejs.dev/config/
 export default defineConfig({
   base: './',
+  define: {
+    __DEFINES__: {}
+  },
   plugins: [react()],
   resolve: {
     alias: {
