@@ -11,14 +11,18 @@ const modalStyles: ReactModal.Styles = {
     zIndex: 50,
   },
   content: {
-    top: '0',
-    left: '0',
-    right: '0',
-    bottom: '0',
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    transform: 'translate(-50%, -50%)',
     border: 'none',
     background: 'transparent',
     padding: '0',
-    overflow: 'hidden',
+    width: '90%',
+    maxWidth: '1200px',
+    maxHeight: '90vh',
+    overflow: 'auto',
   },
 };
 
@@ -47,7 +51,7 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       contentLabel="About AI Salvador"
       ariaHideApp={false}
     >
-      <div className="w-full h-full relative flex flex-col items-center justify-center font-body game-background overflow-auto p-4 sm:p-8">
+      <div className="w-full relative bg-gray-900/90 backdrop-blur-sm rounded-xl border border-white/10 shadow-2xl p-6 sm:p-8 overflow-auto max-h-[90vh]">
         <div
           className="absolute inset-0 z-0"
           style={{

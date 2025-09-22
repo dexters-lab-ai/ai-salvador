@@ -409,7 +409,7 @@ function Home() {
           <Button imgUrl={infoImg} onClick={() => setAboutModalOpen(true)}>
             About
           </Button>
-          {isAdmin && worldStatus && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+          {isAdmin && worldStatus && (
             <>
               <Button
                 onClick={() => triggerChase({ worldId: worldStatus.worldId })}
@@ -451,7 +451,7 @@ function Home() {
           )}
         </div>
         <Treasury compact={isExpanded} />
-        <a href="https://a16z.com" title="Forked, credit to a16z for original work">
+        <a href="https://a16z.com" title="Credit, a16z for original template. Inspired by the research paper Generative Agents: Interactive Simulacra of Human Behavior.">
           <img className="w-8 h-8 pointer-events-auto" src={a16zImg} alt="a16z" />
         </a>
       </footer>
