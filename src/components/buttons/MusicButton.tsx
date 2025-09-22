@@ -6,40 +6,75 @@ import { api } from '../../../convex/_generated/api';
 import { toast } from 'react-toastify';
 
 // Permissions overlay component
-function PermissionsOverlay({ onRequestPermission }: { onRequestPermission: () => void }) {
+function PermissionsOverlay({ onRequestPermission, isAudioBlocked }: { onRequestPermission: () => void, isAudioBlocked: boolean }) {
   const [showOverlay, setShowOverlay] = useState(false);
   const [permissionState, setPermissionState] = useState<PermissionState>('prompt');
+  const [showDismiss, setShowDismiss] = useState(false);
 
   useEffect(() => {
+    // Show dismiss button after a delay
+    const dismissTimer = setTimeout(() => setShowDismiss(true), 3000);
+    
     // Check if the browser supports the permissions API
     if ('permissions' in navigator) {
-      navigator.permissions.query({ name: 'autoplay' as PermissionName })
+      // @ts-ignore - autoplay permission is not in the TypeScript lib yet
+      const permissionName = 'autoplay' as PermissionName;
+      navigator.permissions.query({ name: permissionName })
         .then(permissionStatus => {
           setPermissionState(permissionStatus.state);
-          permissionStatus.onchange = () => setPermissionState(permissionStatus.state);
+          permissionStatus.onchange = () => {
+            setPermissionState(permissionStatus.state);
+          };
         })
         .catch(console.error);
     }
 
     // Show overlay after a short delay if audio is blocked
-    const timer = setTimeout(() => {
-      setShowOverlay(true);
-    }, 2000);
+    const showTimer = setTimeout(() => {
+      if (isAudioBlocked || permissionState === 'denied') {
+        setShowOverlay(true);
+      }
+    }, 1000);
 
-    return () => clearTimeout(timer);
-  }, []);
+    return () => {
+      clearTimeout(showTimer);
+      clearTimeout(dismissTimer);
+    };
+  }, [isAudioBlocked, permissionState]);
 
-  if (!showOverlay || permissionState === 'granted') return null;
+  if (!showOverlay || (permissionState === 'granted' && !isAudioBlocked)) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 bg-clay-800 bg-opacity-90 text-white p-4 rounded-lg shadow-lg z-50 max-w-xs">
-      <p className="text-sm mb-2">To enable background music, please allow audio playback.</p>
-      <button
-        onClick={onRequestPermission}
-        className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded"
-      >
-        Allow Audio
-      </button>
+    <div className="fixed bottom-4 right-4 bg-clay-800 bg-opacity-95 text-white p-4 rounded-lg shadow-lg z-[100] max-w-xs border border-clay-600">
+      <div className="flex items-start">
+        <div className="flex-1">
+          <p className="text-sm font-medium mb-2">🔊 Allow Audio</p>
+          <p className="text-xs text-clay-200 mb-3">To enable background music, please allow audio playback in your browser.</p>
+          <div className="flex gap-2">
+            <button
+              onClick={onRequestPermission}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded transition-colors"
+            >
+              Allow Audio
+            </button>
+            {showDismiss && (
+              <button
+                onClick={() => setShowOverlay(false)}
+                className="text-xs px-3 py-1.5 rounded border border-clay-600 hover:bg-clay-700 transition-colors"
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+        </div>
+        <button 
+          onClick={() => setShowOverlay(false)}
+          className="ml-2 text-clay-400 hover:text-white"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
@@ -264,9 +299,10 @@ export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseA
         </div>
       </button>
       
-      {isAudioBlocked && (
-        <PermissionsOverlay onRequestPermission={handleRequestPermission} />
-      )}
+      <PermissionsOverlay 
+        onRequestPermission={handleRequestPermission} 
+        isAudioBlocked={isAudioBlocked} 
+      />
     </>
   );
 }

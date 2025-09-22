@@ -178,12 +178,12 @@ function Home() {
 
         <div className="text-center text-white px-4 relative z-10">
           <div className="flex flex-col items-center justify-center">
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold font-display leading-none tracking-wider game-title landing-brighten title-stagger">
+            <h1 className="text-4xl xs:text-5xl sm:text-7xl lg:text-8xl font-bold font-display leading-none tracking-wider game-title landing-brighten title-stagger">
               {Array.from('WELCOME TO').map((ch, i) => (
                 <span key={i} style={{ animationDelay: `${i * 60}ms` }}>{ch === ' ' ? '\u00A0' : ch}</span>
               ))}
             </h1>
-            <h2 className="mt-1 text-6xl sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title landing-brighten title-stagger">
+            <h2 className="mt-1 text-5xl xs:text-6xl sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title landing-brighten title-stagger">
               {Array.from('AI SALVADOR').map((ch, i) => (
                 <span key={i} style={{ animationDelay: `${300 + i * 60}ms` }}>{ch === ' ' ? '\u00A0' : ch}</span>
               ))}
