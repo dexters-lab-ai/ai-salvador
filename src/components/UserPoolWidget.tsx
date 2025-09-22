@@ -153,12 +153,26 @@ export default function UserPoolWidget() {
 
   const container = (
     <div
-      className="pointer-events-auto bg-brown-800 text-white rounded-lg shadow-lg cursor-pointer transition-all duration-300 z-50"
-      onClick={() => setIsExpanded((v) => !v)}
-      style={{ width: isExpanded ? (window.innerWidth >= 640 ? 240 : 260) : undefined }}
+      className="pointer-events-auto bg-brown-800 text-white rounded-lg shadow-lg transition-all duration-300 z-50 relative"
+      style={{ width: isExpanded ? (window.innerWidth >= 640 ? 260 : 'calc(100% - 1rem)') : undefined }}
     >
+      {isExpanded && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsExpanded(false);
+          }}
+          className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md z-10"
+          aria-label="Close player pool"
+        >
+          ×
+        </button>
+      )}
       {/* Desktop (sm and up): original horizontal expanded layout */}
-      <div className={`hidden sm:flex items-center ${isExpanded ? 'p-2' : 'sm:p-2'}`}>
+      <div 
+        className={`hidden sm:flex items-center ${isExpanded ? 'p-3' : 'sm:p-2'}`}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         {!isExpanded && (
           <div className="w-12 h-12 flex items-center justify-center">
             <span role="img" aria-label="pool" className="text-2xl">🏊</span>
