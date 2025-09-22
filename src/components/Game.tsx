@@ -76,28 +76,80 @@ export default function Game({
     historicalTime: historicalTime === undefined ? 'undefined' : historicalTime,
   };
 
-  const hasPannedForChase = useRef(false);
+  const chaseAnimationRef = useRef<number>();
+  
+  // Handle chase camera
   useEffect(() => {
     if (!isChaseActive) {
-      hasPannedForChase.current = false;
+      // Clean up any existing animation frame
+      if (chaseAnimationRef.current) {
+        cancelAnimationFrame(chaseAnimationRef.current);
+        chaseAnimationRef.current = undefined;
+      }
       return;
     }
-    if (!game || hasPannedForChase.current) return;
+
+    if (!game) return;
+    
     const ms13Desc = [...game.playerDescriptions.values()].find((d) => d.name === 'MS-13');
     if (!ms13Desc) return;
-    const ms13 = game.world.players.get(ms13Desc.playerId as GameId<'players'>);
+    
     const vp = viewportRef.current;
-    if (ms13 && vp) {
-      hasPannedForChase.current = true;
-      vp.animate({
-        position: new PIXI.Point(
-          ms13.position.x * game.worldMap.tileDim,
-          ms13.position.y * game.worldMap.tileDim,
-        ),
-        scale: 1,
-        time: 1000,
-      });
-    }
+    if (!vp) return;
+
+    // Initial pan to MS-13
+    const initialPan = () => {
+      const ms13 = game.world.players.get(ms13Desc.playerId as GameId<'players'>);
+      if (ms13) {
+        vp.animate({
+          position: new PIXI.Point(
+            ms13.position.x * game.worldMap.tileDim,
+            ms13.position.y * game.worldMap.tileDim,
+          ),
+          scale: 1,
+          time: 1000,
+          ease: 'easeInOutQuad',
+          removeOnInterrupt: true,
+        });
+      }
+    };
+
+    // Start following MS-13
+    const followMS13 = () => {
+      const ms13 = game.world.players.get(ms13Desc.playerId as GameId<'players'>);
+      if (ms13 && vp) {
+        const targetX = ms13.position.x * game.worldMap.tileDim;
+        const targetY = ms13.position.y * game.worldMap.tileDim;
+        const currentPos = vp.center;
+        const dx = targetX - currentPos.x;
+        const dy = targetY - currentPos.y;
+        
+        // Only move if we're more than 1 tile away
+        if (Math.abs(dx) > game.worldMap.tileDim || Math.abs(dy) > game.worldMap.tileDim) {
+          vp.moveCenter(
+            currentPos.x + dx * 0.1, // Smooth follow with 10% of the distance
+            currentPos.y + dy * 0.1
+          );
+        }
+      }
+      
+      // Continue the animation loop if chase is still active
+      if (isChaseActive) {
+        chaseAnimationRef.current = requestAnimationFrame(followMS13);
+      }
+    };
+
+    // Initial pan, then start following
+    initialPan();
+    chaseAnimationRef.current = requestAnimationFrame(followMS13);
+
+    // Cleanup
+    return () => {
+      if (chaseAnimationRef.current) {
+        cancelAnimationFrame(chaseAnimationRef.current);
+        chaseAnimationRef.current = undefined;
+      }
+    };
   }, [isChaseActive, game]);
 
   const hasPannedForMeeting = useRef(false);

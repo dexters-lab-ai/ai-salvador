@@ -409,7 +409,7 @@ function Home() {
           <Button imgUrl={infoImg} onClick={() => setAboutModalOpen(true)}>
             About
           </Button>
-          {isAdmin && worldStatus && (
+          {isAdmin && worldStatus && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
             <>
               <Button
                 onClick={() => triggerChase({ worldId: worldStatus.worldId })}
