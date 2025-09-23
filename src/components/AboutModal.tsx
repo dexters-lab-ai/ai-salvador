@@ -149,12 +149,12 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 <span className="text-amber-300 font-bold text-lg">CA: </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-amber-100 font-mono text-sm sm:text-base break-words leading-relaxed">
-                    0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+                    EN6Up48xxFTmj1ngb4xSbArixMmebL1TmWURcuA8pump
                   </span>
                 </div>
                 <button 
                   onClick={(e) => {
-                    navigator.clipboard.writeText('0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef');
+                    navigator.clipboard.writeText('EN6Up48xxFTmj1ngb4xSbArixMmebL1TmWURcuA8pump');
                     const button = e.currentTarget;
                     const tooltip = button.nextElementSibling as HTMLElement;
                     tooltip.classList.remove('opacity-0', 'invisible');
