@@ -7,26 +7,28 @@ import { SpritesheetData } from '../../data/spritesheets/types';
 
 const modalStyles: ReactModal.Styles = {
   overlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     zIndex: 50,
-    padding: '0',
+    padding: '1rem',
     margin: '0',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    backdropFilter: 'blur(4px)',
   },
   content: {
     position: 'relative',
-    inset: '0',
     border: 'none',
     background: 'transparent',
     width: '95%',
-    minWidth: '1200px',
-    maxWidth: '1600px',
+    maxWidth: '1400px',
     height: '90vh',
-    margin: '0',
+    margin: '0 auto',
     padding: '0',
-    overflow: 'visible',
+    overflow: 'hidden',
+    WebkitOverflowScrolling: 'touch',
+    borderRadius: '1rem',
+    outline: 'none',
   },
 };
 
@@ -55,15 +57,12 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       contentLabel="About AI Salvador"
       ariaHideApp={false}
     >
-      <div className="w-full h-full relative bg-gray-900/80 backdrop-blur-lg rounded-xl border-2 border-white/20 shadow-2xl p-6 sm:p-10 overflow-y-auto" style={{
-        background: 'linear-gradient(145deg, rgba(17, 24, 39, 0.9), rgba(31, 41, 55, 0.9))',
-        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.5)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
-        width: '100%',
-        maxWidth: '100%',
-        margin: '0',
-        padding: '2rem'
+      <div className="w-full h-full relative overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-10" style={{
+        background: 'rgba(17, 24, 39, 0.7)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '1rem',
       }}>
         <div
           className="absolute inset-0 z-0"
@@ -83,14 +82,14 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         </button>
 
         <div className="relative z-10 text-center text-white w-full">
-          <h1 className="text-6xl sm:text-7xl lg:text-8xl font-bold font-display game-title text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold font-display game-title text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300">
             AI Salvador
           </h1>
-          <h2 className="mt-8 text-2xl sm:text-3xl font-display text-white tracking-widest font-bold">
+          <h2 className="mt-4 sm:mt-6 md:mt-8 text-xl sm:text-2xl md:text-3xl font-display text-white tracking-widest font-bold">
             Starring
           </h2>
 
-          <div className="mt-6 flex flex-wrap justify-center items-start gap-x-6 gap-y-8 sm:gap-x-8">
+          <div className="mt-4 sm:mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6">
             {agentCast.map((agent) => {
               const sheet = agent.character;
               const frame = (sheet.spritesheetData as SpritesheetData).frames['down']?.frame;

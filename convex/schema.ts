@@ -38,6 +38,11 @@ export default defineSchema({
         startTime: v.number(),
       }),
     ),
+    // Cooldown timestamps (in milliseconds since epoch)
+    lastChaseTime: v.optional(v.number()),
+    lastPartyTime: v.optional(v.number()),
+    lastMeetingTime: v.optional(v.number()),
+    cooldownMinutes: v.optional(v.number()), // Default cooldown in minutes
   }),
 
   portfolios: defineTable({

@@ -1,6 +1,7 @@
 import Game from './components/Game.tsx';
 
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.min.css';
 import a16zImg from '../assets/a16z.png';
 import convexImg from '../assets/convex.svg';
 import shareImg from '../assets/share.svg';
@@ -22,6 +23,7 @@ import Treasury from './components/Treasury.tsx';
 import UserPoolWidget from './components/UserPoolWidget.tsx';
 import { HustleModal } from './components/HustleModal.tsx';
 import { useMutation, useQuery } from 'convex/react';
+import type { Id } from '../convex/_generated/dataModel';
 import { api } from '../convex/_generated/api';
 import { MAX_HUMAN_PLAYERS } from './shared/constants.ts';
 import { ShareModal } from './components/ShareModal.tsx';
@@ -103,6 +105,73 @@ function Home() {
   const gatherAll = useMutation(api.world.gatherAll);
   const triggerParty = useMutation(api.world.triggerParty);
   const stopParty = useMutation(api.world.stopParty);
+
+  // Wrap mutations with toast notifications
+  const handleChase = async () => {
+    if (!worldStatus?.worldId) return;
+    try {
+      await triggerChase({ worldId: worldStatus.worldId });
+      toast.success('🚨 Chase initiated!', {
+        icon: '🏃',
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    } catch (error: any) {
+      toast.error(error.message, {
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    }
+  };
+
+  const handleGatherAll = async () => {
+    if (!worldStatus?.worldId) return;
+    try {
+      await gatherAll({ worldId: worldStatus.worldId });
+      toast.success('📢 Town meeting called!', {
+        icon: '🗣️',
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    } catch (error: any) {
+      toast.error(error.message, {
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    }
+  };
+
+  const handleParty = async () => {
+    if (!worldStatus?.worldId) return;
+    if (isPartyActive) {
+      try {
+        await stopParty({ worldId: worldStatus.worldId });
+        toast.info('💤 Party ended', {
+          position: 'bottom-right',
+          autoClose: 2000,
+        });
+      } catch (error: any) {
+        toast.error(error.message, {
+          position: 'bottom-right',
+          autoClose: 3000,
+        });
+      }
+    } else {
+      try {
+        await triggerParty({ worldId: worldStatus.worldId });
+        toast.success('🎉 Party started!', {
+          icon: '🎊',
+          position: 'bottom-right',
+          autoClose: 3000,
+        });
+      } catch (error: any) {
+        toast.error(error.message, {
+          position: 'bottom-right',
+          autoClose: 3000,
+        });
+      }
+    }
+  };
   const isAdmin = (import.meta as any).env?.VITE_ADMIN === '1';
 
   const villageState = useQuery(api.world.villageState, {});
@@ -110,7 +179,30 @@ function Home() {
 
   const [isChaseActive, setIsChaseActive] = useState(false);
   const [isMeetingActive, setIsMeetingActive] = useState(false);
+  const [cooldowns, setCooldowns] = useState({
+    chase: 0,
+    party: 0,
+    meeting: 0
+  });
   const chaseAudioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // Update cooldowns every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (villageState) {
+        const now = Date.now();
+        const cooldownMs = (villageState.cooldownMinutes || 60) * 60 * 1000;
+        
+        setCooldowns({
+          chase: Math.max(0, ((villageState.lastChaseTime || 0) + cooldownMs - now) / 1000),
+          party: Math.max(0, ((villageState.lastPartyTime || 0) + cooldownMs - now) / 1000),
+          meeting: Math.max(0, ((villageState.lastMeetingTime || 0) + cooldownMs - now) / 1000)
+        });
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [villageState]);
 
   useEffect(() => {
     if (!game) return;
@@ -412,35 +504,27 @@ function Home() {
           {isAdmin && worldStatus && (
             <>
               <Button
-                onClick={() => triggerChase({ worldId: worldStatus.worldId })}
+                onClick={handleChase}
                 title="Trigger ICE vs MS-13 chase"
-                className={isChaseActive ? 'opacity-50 cursor-not-allowed' : ''}
+                disabled={isChaseActive || cooldowns.chase > 0}
               >
-                Chase 🚨
+                {cooldowns.chase > 0 ? `Chase (${Math.ceil(cooldowns.chase / 60)}m)` : 'Chase 🚨'}
               </Button>
               <Button
-                onClick={() => gatherAll({ worldId: worldStatus.worldId })}
+                onClick={handleGatherAll}
                 title="Gather all agents for a town meeting"
-                className={isMeetingActive ? 'opacity-50 cursor-not-allowed' : ''}
+                disabled={isMeetingActive || cooldowns.meeting > 0}
               >
-                Meeting 🧑‍🏫
+                {cooldowns.meeting > 0 ? `Meeting (${Math.ceil(cooldowns.meeting / 60)}m)` : 'Meeting 📢'}
               </Button>
-              {isPartyActive ? (
-                <Button
-                  onClick={() => stopParty({ worldId: worldStatus.worldId })}
-                  title="End the current party"
-                  className={'bg-red-500 hover:bg-red-600'}
-                >
-                  Stop 🎉
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => triggerParty({ worldId: worldStatus.worldId })}
-                  title="Gather all agents for a party"
-                >
-                  Party! 🎉
-                </Button>
-              )}
+              <Button
+                onClick={handleParty}
+                title={isPartyActive ? 'End the current party' : 'Gather all agents for a party'}
+                className={isPartyActive ? 'bg-red-500 hover:bg-red-600' : ''}
+                disabled={cooldowns.party > 0}
+              >
+                {isPartyActive ? 'End Party 🎉' : cooldowns.party > 0 ? `Party (${Math.ceil(cooldowns.party / 60)}m)` : 'Party! 🎉'}
+              </Button>
               <Button
                 onClick={() => setAddNewsModalOpen(true)}
                 title="Add news article"
@@ -456,7 +540,30 @@ function Home() {
         </a>
       </footer>
 
-      <ToastContainer position="bottom-right" autoClose={2000} closeOnClick theme="dark" />
+      <ToastContainer 
+        position="bottom-right" 
+        autoClose={3000} 
+        closeOnClick 
+        theme="dark"
+        pauseOnHover
+        pauseOnFocusLoss={false}
+        newestOnTop
+        closeButton={false}
+        toastStyle={{
+          background: 'rgba(30, 41, 59, 0.9)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          borderRadius: '0.5rem',
+          padding: '0.75rem 1rem',
+          color: '#f8fafc',
+          fontSize: '0.9rem',
+          fontFamily: 'var(--font-sans)',
+        }}
+        progressStyle={{
+          background: 'rgba(99, 102, 241, 0.8)',
+        }}
+      />
       {userPlayer && <HustleModal playerId={userPlayer.id} />}
     </main>
   );

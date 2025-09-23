@@ -43,6 +43,7 @@ import type * as http from "../http.js";
 import type * as init from "../init.js";
 import type * as main from "../main.js";
 import type * as messages from "../messages.js";
+import type * as migrations_addCooldownsToVillageState from "../migrations/addCooldownsToVillageState.js";
 import type * as migrations from "../migrations.js";
 import type * as music from "../music.js";
 import type * as news from "../news.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   init: typeof init;
   main: typeof main;
   messages: typeof messages;
+  "migrations/addCooldownsToVillageState": typeof migrations_addCooldownsToVillageState;
   migrations: typeof migrations;
   music: typeof music;
   news: typeof news;

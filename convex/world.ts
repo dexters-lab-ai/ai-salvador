@@ -194,6 +194,20 @@ export const monitorChase = internalMutation({
 export const triggerChase = mutation({
   args: { worldId: v.id('worlds') },
   handler: async (ctx, { worldId }) => {
+    // Check cooldown
+    const villageState = await ctx.db.query('villageState').unique();
+    const now = Date.now();
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
+    
+    if (villageState?.lastChaseTime && now - villageState.lastChaseTime < cooldownMs) {
+      const remainingMinutes = Math.ceil((villageState.lastChaseTime + cooldownMs - now) / (60 * 1000));
+      throw new Error(`Chase is on cooldown. Please wait ${remainingMinutes} more minutes.`);
+    }
+    
+    // Update last chase time
+    if (villageState) {
+      await ctx.db.patch(villageState._id, { lastChaseTime: now });
+    }
     const world = await ctx.db.get(worldId);
     if (!world) throw new Error(`Invalid world ID: ${worldId}`);
     const worldStatus = await ctx.db
@@ -237,14 +251,14 @@ export const triggerChase = mutation({
     // Set activities and speed multipliers
     await insertInput(ctx, worldId, 'setActivity', {
       playerId: ice.playerId,
-      description: 'Chase MS-13...',
+      description: 'Chase MS-13',
       emoji: '🚔',
       durationMs: 10000,
     } as any);
     await insertInput(ctx, worldId, 'setActivity', {
       playerId: ms13.playerId,
-      description: 'Run for border...',
-      emoji: '🦹',
+      description: 'Run for border',
+      emoji: '🏃',
       durationMs: 10000,
     } as any);
     await insertInput(ctx, worldId, 'setSpeedMultiplier', {
@@ -790,6 +804,20 @@ export const getLatestMeetingNotes = query({
 export const gatherAll = mutation({
   args: { worldId: v.id('worlds') },
   handler: async (ctx, { worldId }) => {
+    // Check cooldown for meetings
+    const villageState = await ctx.db.query('villageState').unique();
+    const now = Date.now();
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
+    
+    if (villageState?.lastMeetingTime && now - villageState.lastMeetingTime < cooldownMs) {
+      const remainingMinutes = Math.ceil((villageState.lastMeetingTime + cooldownMs - now) / (60 * 1000));
+      throw new Error(`Meeting is on cooldown. Please wait ${remainingMinutes} more minutes.`);
+    }
+    
+    // Update last meeting time
+    if (villageState) {
+      await ctx.db.patch(villageState._id, { lastMeetingTime: now });
+    }
     const world = await ctx.db.get(worldId);
     if (!world) throw new Error('World not found');
     const playerDescriptions = await ctx.db
@@ -972,9 +1000,22 @@ export const dismissMeeting = internalMutation({
 export const triggerParty = mutation({
   args: { worldId: v.id('worlds') },
   handler: async (ctx, { worldId }) => {
+    // Check cooldown
     const villageState = await ctx.db.query('villageState').unique();
+    const now = Date.now();
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
+    
+    if (villageState?.lastPartyTime && now - villageState.lastPartyTime < cooldownMs) {
+      const remainingMinutes = Math.ceil((villageState.lastPartyTime + cooldownMs - now) / (60 * 1000));
+      throw new Error(`Party is on cooldown. Please wait ${remainingMinutes} more minutes.`);
+    }
+
+    // Update last party time and start party
     if (villageState) {
-      await ctx.db.patch(villageState._id, { isPartyActive: true });
+      await ctx.db.patch(villageState._id, { 
+        isPartyActive: true,
+        lastPartyTime: now 
+      });
     }
     await ctx.scheduler.runAfter(30 * 60 * 1000, internal.world.dismissParty, { worldId });
   },
