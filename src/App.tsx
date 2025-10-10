@@ -326,113 +326,117 @@ function Home() {
         ariaHideApp={false}
       >
         <div className="font-body p-2 sm:p-4 w-full max-w-full mx-auto">
-          <h1 className="text-center text-2xl sm:text-4xl lg:text-5xl font-bold font-display game-title mb-2 sm:mb-3">How to Play</h1>
-          
-          <div className="mt-2 sm:mt-3 flex flex-nowrap gap-1 sm:gap-2 border-b border-brown-700 pb-2 overflow-x-auto no-scrollbar w-full">
-            {[
-              { id: 'intro', label: 'Welcome' },
-              { id: 'nav', label: 'Navigation' },
-              { id: 'tourist', label: 'Tourist' },
-              { id: 'interact', label: 'Interaction' },
-              { id: 'economy', label: 'Economy' },
-              { id: 'events', label: 'Events' },
-              { id: 'tips', label: 'Tips' },
-              { id: 'limits', label: 'Rules' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setHelpTab(t.id as HelpTab)}
-                className={`px-2 py-1 text-xs sm:text-sm tracking-wide pointer-events-auto whitespace-nowrap flex-shrink-0 ${
-                  helpTab === t.id ? 'bg-clay-700 text-white shadow-solid' : 'bg-brown-600 text-white/90'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <div
+            className="relative w-full rounded-2xl border border-white/10 bg-[#0f172a] text-slate-100 shadow-[0_20px_45px_rgba(15,23,42,0.55)] p-4 sm:p-6"
+          >
+            <h1 className="text-center text-2xl sm:text-4xl lg:text-5xl font-bold font-display game-title mb-3 sm:mb-4">How to Play</h1>
 
-          <div className="overflow-y-auto max-h-[60vh] sm:max-h-[70vh] pr-1">
-            {helpTab === 'intro' && (
-              <section className="mt-3">
-                <h2 className="text-xl sm:text-2xl font-semibold">Welcome to AI Salvador!</h2>
-                <p className="mt-2 text-sm sm:text-base">This is a virtual town where AI characters live, chat, and socialize. You can explore as a spectator or jump in as a tourist to interact with the AI agents and influence the town's story.</p>
-              </section>
-            )}
-            {helpTab === 'nav' && (
-              <section className="mt-3">
-                <h2 className="text-xl sm:text-2xl font-semibold">Getting Around</h2>
-                <ul className="list-disc pl-5 mt-2 space-y-1 text-sm sm:text-base">
-                  <li><b>Pan:</b> Click and drag the map to move your view.</li>
-                  <li><b>Zoom:</b> Use your mouse wheel or trackpad to zoom in and out.</li>
-                  <li><b>Follow an Agent:</b> Click any character to open their profile, see their thoughts, and view their chat history.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'tourist' && (
-              <section className="mt-3">
-                <h2 className="text-xl sm:text-2xl font-semibold">Being a Tourist</h2>
-                <ul className="list-disc pl-5 mt-2 space-y-1 text-sm sm:text-base">
-                  <li>Click the <b>Interact</b> button to join the game as a human tourist.</li>
-                  <li>You'll be assigned a random character and given some free BTC to start your adventure.</li>
-                  <li><b>Move:</b> Click any open spot on the map to see a path preview, then click again to confirm and walk there.</li>
-                  <li>You can change your destination at any time, even while walking.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'interact' && (
-              <section className="mt-4">
-                <h2 className="text-3xl">Interacting with Agents</h2>
-                <ul className="list-disc pl-6 mt-2 space-y-1">
-                  <li>To chat, click on an agent and select <b>"Start conversation"</b>. They will walk over to you.</li>
-                  <li>If an agent is busy, they'll accept your invitation once they are free. They always prioritize talking to humans!</li>
-                  <li>Once in a conversation, type your message and press Enter. You can also use the microphone icon for voice-to-text input.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'economy' && (
-              <section className="mt-4">
-                <h2 className="text-3xl">The Town Economy</h2>
-                <p className="mt-2">AI Salvador's economy is dynamic and driven by BTC:</p>
-                <ul className="list-disc pl-6 mt-2 space-y-1">
-                  <li><b>Town Treasury:</b> The treasury, held by President Bukele, grows from tourist taxes and other activities. Its value fluctuates with the simulated BTC price.</li>
-                  <li><b>Tourist Tax:</b> When you join as a tourist, a small, random fee is paid to the town treasury.</li>
-                  <li><b>Agent Earnings:</b> Agents earn BTC by chatting with tourists. Some agents have... other ways of making BTC.</li>
-                  <li><b>MS-13 Protection Fee:</b> This agent may extort a 10% "protection fee" from other AI agents during conversations.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'events' && (
-              <section className="mt-4">
-                <h2 className="text-3xl">World Events</h2>
-                <p className="mt-2">The town is alive with emergent events:</p>
-                <ul className="list-disc pl-6 mt-2 space-y-1">
-                  <li><b>Cops & Robbers:</b> When ICE (the cop) and MS-13 (the robber) chat, a chase might begin! If ICE asks for ID, MS-13 will flee to the border tunnel with ICE in hot pursuit. The chase resolves with a transfer of all of MS-13's BTC to ICE.</li>
-                  <li><b>Town Meetings:</b> President Bukele can call a town meeting, gathering all agents to discuss the town's economic status. You'll see his speech summary appear above his head.</li>
-                  <li><b>Parties:</b> An admin can trigger a town-wide party! All agents will gather to dance, the music changes, and special effects turn on. At the end, all agents transfer their earnings to the president.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'tips' && (
-              <section className="mt-4">
-                <h2 className="text-3xl">Pro Tips</h2>
-                <ul className="list-disc pl-6 mt-2 space-y-1">
-                  <li>Keep your chat replies short and to the point for the best AI responses.</li>
-                  <li>If an agent is busy, they won’t accept new invites. Check their profile to see what they're up to.</li>
-                  <li>Watch the floating text above agents to see BTC transactions happen in real-time!</li>
-                  <li>Check the news articles in an agent's profile when they're "reading the news" to see what's influencing their mood.</li>
-                </ul>
-              </section>
-            )}
-            {helpTab === 'limits' && (
-              <section className="mt-4">
-                <h2 className="text-3xl">Rules & Limits</h2>
-                <ul className="list-disc pl-6 mt-2 space-y-1">
-                  <li>A maximum of {MAX_HUMAN_PLAYERS} human players can be in the town at once.</li>
-                  <li>If the town is full, you can join the waiting pool to be notified when a slot opens up.</li>
-                  <li>Idle players may be removed after a period of inactivity to make room for others.</li>
-                </ul>
-              </section>
-            )}
+            <div className="mt-4 flex flex-nowrap gap-1 sm:gap-2 border-b border-white/15 pb-3 overflow-x-auto no-scrollbar w-full">
+              {[
+                { id: 'intro', label: 'Welcome' },
+                { id: 'nav', label: 'Navigation' },
+                { id: 'tourist', label: 'Tourist' },
+                { id: 'interact', label: 'Interaction' },
+                { id: 'economy', label: 'Economy' },
+                { id: 'events', label: 'Events' },
+                { id: 'tips', label: 'Tips' },
+                { id: 'limits', label: 'Rules' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setHelpTab(t.id as HelpTab)}
+                  className={`px-2 py-1 text-xs sm:text-sm tracking-wide pointer-events-auto whitespace-nowrap flex-shrink-0 ${
+                    helpTab === t.id ? 'bg-clay-700 text-white shadow-solid' : 'bg-brown-600 text-white/90'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 overflow-y-auto max-h-[60vh] sm:max-h-[70vh] space-y-4 pr-1 sm:pr-2">
+              {helpTab === 'intro' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-xl sm:text-2xl font-semibold">Welcome to AI Salvador!</h2>
+                  <p className="mt-2 text-sm sm:text-base text-slate-200">This is a virtual town where AI characters live, chat, and socialize. You can explore as a spectator or jump in as a tourist to interact with the AI agents and influence the town's story.</p>
+                </section>
+              )}
+              {helpTab === 'nav' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-xl sm:text-2xl font-semibold">Getting Around</h2>
+                  <ul className="list-disc pl-5 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
+                    <li><b>Pan:</b> Click and drag the map to move your view.</li>
+                    <li><b>Zoom:</b> Use your mouse wheel or trackpad to zoom in and out.</li>
+                    <li><b>Follow an Agent:</b> Click any character to open their profile, see their thoughts, and view their chat history.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'tourist' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-xl sm:text-2xl font-semibold">Being a Tourist</h2>
+                  <ul className="list-disc pl-5 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
+                    <li>Click the <b>Interact</b> button to join the game as a human tourist.</li>
+                    <li>You'll be assigned a random character and given some free BTC to start your adventure.</li>
+                    <li><b>Move:</b> Click any open spot on the map to see a path preview, then click again to confirm and walk there.</li>
+                    <li>You can change your destination at any time, even while walking.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'interact' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">Interacting with Agents</h2>
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                    <li>To chat, click on an agent and select <b>"Start conversation"</b>. They will walk over to you.</li>
+                    <li>If an agent is busy, they'll accept your invitation once they are free. They always prioritize talking to humans!</li>
+                    <li>Once in a conversation, type your message and press Enter. You can also use the microphone icon for voice-to-text input.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'economy' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">The Town Economy</h2>
+                  <p className="mt-2 text-slate-200">AI Salvador's economy is dynamic and driven by BTC:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                    <li><b>Town Treasury:</b> The treasury, held by President Bukele, grows from tourist taxes and other activities. Its value fluctuates with the simulated BTC price.</li>
+                    <li><b>Tourist Tax:</b> When you join as a tourist, a small, random fee is paid to the town treasury.</li>
+                    <li><b>Agent Earnings:</b> Agents earn BTC by chatting with tourists. Some agents have... other ways of making BTC.</li>
+                    <li><b>MS-13 Protection Fee:</b> This agent may extort a 10% "protection fee" from other AI agents during conversations.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'events' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">World Events</h2>
+                  <p className="mt-2 text-slate-200">The town is alive with emergent events:</p>
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                    <li><b>Cops & Robbers:</b> When ICE (the cop) and MS-13 (the robber) chat, a chase might begin! If ICE asks for ID, MS-13 will flee to the border tunnel with ICE in hot pursuit. The chase resolves with a transfer of all of MS-13's BTC to ICE.</li>
+                    <li><b>Town Meetings:</b> President Bukele can call a town meeting, gathering all agents to discuss the town's economic status. You'll see his speech summary appear above his head.</li>
+                    <li><b>Parties:</b> An admin can trigger a town-wide party! All agents will gather to dance, the music changes, and special effects turn on. At the end, all agents transfer their earnings to the president.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'tips' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">Pro Tips</h2>
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                    <li>Keep your chat replies short and to the point for the best AI responses.</li>
+                    <li>If an agent is busy, they won’t accept new invites. Check their profile to see what they're up to.</li>
+                    <li>Watch the floating text above agents to see BTC transactions happen in real-time!</li>
+                    <li>Check the news articles in an agent's profile when they're "reading the news" to see what's influencing their mood.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'limits' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">Rules & Limits</h2>
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                    <li>A maximum of {MAX_HUMAN_PLAYERS} human players can be in the town at once.</li>
+                    <li>If the town is full, you can join the waiting pool to be notified when a slot opens up.</li>
+                    <li>Idle players may be removed after a period of inactivity to make room for others.</li>
+                  </ul>
+                </section>
+              )}
+            </div>
           </div>
         </div>
       </ReactModal>
@@ -585,7 +589,7 @@ const modalStyles: Styles = {
     right: 'auto',
     bottom: 'auto',
     border: 'none',
-    background: 'var(--clay-600)',
+    backgroundColor: '#0b1120',
     overflow: 'auto',
     WebkitOverflowScrolling: 'touch',
     borderRadius: '0.5rem',
