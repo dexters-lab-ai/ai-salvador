@@ -19,7 +19,7 @@ const modalStyles: ReactModal.Styles = {
   content: {
     position: 'relative',
     border: 'none',
-    background: 'transparent',
+    backgroundColor: '#0f172a',
     width: '95%',
     maxWidth: '1400px',
     height: '90vh',
@@ -58,11 +58,10 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       ariaHideApp={false}
     >
       <div className="w-full h-full relative overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-10" style={{
-        background: 'rgba(17, 24, 39, 0.7)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backgroundColor: '#111827',
         border: '1px solid rgba(255, 255, 255, 0.1)',
         borderRadius: '1rem',
+        boxShadow: '0 20px 45px rgba(15, 23, 42, 0.55)',
       }}>
         <div
           className="absolute inset-0 z-0"
@@ -149,12 +148,12 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 <span className="text-amber-300 font-bold text-lg">CA: </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-amber-100 font-mono text-sm sm:text-base break-words leading-relaxed">
-                    EN6Up48xxFTmj1ngb4xSbArixMmebL1TmWURcuA8pump
+                    
                   </span>
                 </div>
                 <button 
                   onClick={(e) => {
-                    navigator.clipboard.writeText('EN6Up48xxFTmj1ngb4xSbArixMmebL1TmWURcuA8pump');
+                    navigator.clipboard.writeText('');
                     const button = e.currentTarget;
                     const tooltip = button.nextElementSibling as HTMLElement;
                     tooltip.classList.remove('opacity-0', 'invisible');
