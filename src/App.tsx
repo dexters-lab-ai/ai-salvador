@@ -32,7 +32,7 @@ import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 
-type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
+type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits' | 'comingSoon';
 
 // Make App the default export
 export default function App() {
@@ -433,6 +433,19 @@ function Home() {
                     <li>A maximum of {MAX_HUMAN_PLAYERS} human players can be in the town at once.</li>
                     <li>If the town is full, you can join the waiting pool to be notified when a slot opens up.</li>
                     <li>Idle players may be removed after a period of inactivity to make room for others.</li>
+                  </ul>
+                </section>
+              )}
+              {helpTab === 'comingSoon' && (
+                <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
+                  <h2 className="text-3xl font-semibold">Coming Soon</h2>
+                  <ul className="list-disc pl-6 mt-2 space-y-3 text-slate-200">
+                    <li>
+                      <b>Town Twitter:</b> President Bukele will take over the official AI Salvador handle once every hour to broadcast town happenings and react to community replies in real-time.
+                    </li>
+                    <li>
+                      <b>Betting:</b> Brace for crypto winter. Step into Bukele's shoes and place wagers through Monaco Protocol markets to hedge or double-down on the town's future.
+                    </li>
                   </ul>
                 </section>
               )}
