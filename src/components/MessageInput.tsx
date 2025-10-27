@@ -7,6 +7,7 @@ import { useSendInput } from '../hooks/sendInput';
 import { Player } from '../../convex/aiTown/player';
 import { Conversation } from '../../convex/aiTown/conversation';
 import micImg from '../../assets/mic.svg';
+import { toast } from 'react-toastify';
 
 export function MessageInput({
   worldId,
@@ -21,7 +22,7 @@ export function MessageInput({
 }) {
   // Fix: Pass an empty object for optional arguments when no other args are present
   const descriptions = useQuery(api.world.gameDescriptions as any, worldId ? { worldId } : 'skip');
-  const humanName = descriptions?.playerDescriptions.find((p) => p.playerId === humanPlayer.id)
+  const humanName = descriptions?.playerDescriptions.find((p: { playerId: string }) => p.playerId === humanPlayer?.id)
     ?.name;
   const inputRef = useRef<HTMLParagraphElement>(null);
   const inflightUuid = useRef<string | undefined>();
@@ -29,8 +30,8 @@ export function MessageInput({
   const startTyping = useSendInput(engineId, 'startTyping');
   const currentlyTyping = conversation.isTyping;
 
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState<boolean>(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {

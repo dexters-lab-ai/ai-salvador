@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import volumeImg from '../../assets/volume.svg';
-import Button from './Button';
 import { useQuery } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
+import { api } from '../../convex/_generated/api';
+
+// Simple button component since we can't find the original Button component
+const Button = ({ children, onClick, className = '', ...props }: any) => (
+  <button 
+    onClick={onClick} 
+    className={`px-4 py-2 rounded-md ${className}`}
+    {...props}
+  >
+    {children}
+  </button>
+);
 import { toast } from 'react-toastify';
 import { audioContextManager } from '../utils/audioContextManager';
 

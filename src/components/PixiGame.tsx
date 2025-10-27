@@ -1,5 +1,6 @@
 import * as PIXI from 'pixi.js';
-import { Container, Graphics, Text, useApp, useTick, Sprite, AnimatedSprite } from '@pixi/react';
+import { Container, Graphics, Text, useApp, Sprite, AnimatedSprite } from '@pixi/react';
+import { useTick } from '@pixi/react';
 import { PlayerComponent } from './Player.tsx'; // Fix: Renamed Player to PlayerComponent
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { PixiStaticMap } from './PixiStaticMap.tsx';
@@ -388,7 +389,7 @@ function BukeleMeetingBubble({ game, tileDim, text }: { game: ServerGame; tileDi
 }
 const PartyLights = ({ tileDim }: { tileDim: number }) => {
   const [t, setT] = useState(0);
-  useTick((ticker: PIXI.Ticker) => setT((t) => t + ticker.deltaMS / 1000)); // Fix: Explicitly type ticker as Ticker
+  useTick((delta: number) => setT((t) => t + delta / 60)); // Using delta directly which is time since last frame in frames
 
   const draw = useCallback(
     (g: PIXI.Graphics) => {

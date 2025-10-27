@@ -362,7 +362,7 @@ export default function Home() {
           <Button imgUrl={shareImg} onClick={handleShare} title="Share on Twitter / X">
             Share
           </Button>
-          <InteractButton />
+          <InteractButton onJoin={() => {}} />
           <Button imgUrl={infoImg} onClick={() => setAboutModalOpen(true)}>
             About
           </Button>

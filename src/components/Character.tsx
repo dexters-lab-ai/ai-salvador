@@ -1,4 +1,4 @@
-import { Texture, SpritesheetData as ISpritesheetData, Spritesheet } from 'pixi.js';
+import { Texture, ISpritesheetData, Spritesheet } from 'pixi.js';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatedSprite, Container, Graphics, Text } from '@pixi/react';
 import * as PIXI from 'pixi.js';

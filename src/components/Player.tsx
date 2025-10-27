@@ -37,7 +37,7 @@ export const PlayerComponent = ({ // Fix: Renamed Player to PlayerComponent
   openPaymentModal: React.Dispatch<any>;
   setIsPaymentModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
-  const { worldId, worldMap, playerDescriptions } = game;
+  const { worldMap, playerDescriptions } = game;
 
   const playerDescription = playerDescriptions.get(player.id);
   if (!playerDescription) {
@@ -84,9 +84,23 @@ export const PlayerComponent = ({ // Fix: Renamed Player to PlayerComponent
   const rotation = orientationDegrees({ dx, dy });
   const isDancing = game.world.players.get(player.id)?.activity?.description.includes('Partying') || false;
 
-  const isThinking =
-    game.world.conversations.get(player.id) === undefined &&
-    game.world.agents.get(player.id)?.inProgressOperation !== undefined;
+  // Safely check if player is in a conversation or has an agent operation in progress
+  const isThinking = (() => {
+    try {
+      // Safely check conversations
+      const playerId = player.id as unknown as GameId<'conversations'>;
+      const inConversation = game.world.conversations.get(playerId) !== undefined;
+      
+      // Safely check agents
+      const agentId = player.id as unknown as GameId<'agents'>;
+      const hasAgentOperation = game.world.agents.get(agentId)?.inProgressOperation !== undefined;
+      
+      return !inConversation && hasAgentOperation;
+    } catch (e) {
+      console.warn('Error checking player thinking state:', e);
+      return false;
+    }
+  })();
   const isSpeaking = game.world.playerConversation(player)?.isTyping?.playerId === player.id;
 
   const portfolio = useQuery(api.economy.getPortfolio, { playerId: player.id });

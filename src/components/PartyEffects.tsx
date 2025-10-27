@@ -1,12 +1,12 @@
 import { Graphics, Sprite, useTick } from '@pixi/react';
-import { Graphics as PixiGraphics, Ticker } from 'pixi.js';
+import { Graphics as PixiGraphics } from 'pixi.js';
 import { useState, useCallback } from 'react';
 
 export const PartyEffects = ({ isPartyActive, tileDim }: { isPartyActive: boolean; tileDim: number }) => {
   const [t, setT] = useState(0);
-  useTick((ticker: Ticker) => { // Fix: Explicitly type ticker as Ticker
+  useTick((delta: number) => {
     if (isPartyActive) {
-      setT((prevT) => prevT + ticker.deltaMS / 1000); // Use deltaMS for consistent time steps
+      setT((prevT) => prevT + delta / 60); // delta is time since last frame in frames
     }
   });
 

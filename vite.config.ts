@@ -27,6 +27,14 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
+      external: [
+        'express',
+        '@solana/web3.js',
+        '@solana/spl-token',
+        'winston',
+        'bs58',
+        'axios'
+      ],
       input: {
         main: resolve(__dirname, 'index.html'),
       },

@@ -44,7 +44,7 @@ export function Messages({
   }
   const currentlyTypingName =
     currentlyTyping &&
-    descriptions?.playerDescriptions.find((p) => p.playerId === currentlyTyping?.playerId)?.name;
+    descriptions?.playerDescriptions.find((p: { playerId: string }) => p.playerId === currentlyTyping?.playerId)?.name;
 
   // Find the other participant (agent) to fetch their latest news memory
   let otherPlayerId: string | undefined = undefined;
@@ -175,8 +175,7 @@ export function Messages({
   const membershipNodes: typeof messageNodes = [];
   if (conversation.kind === 'active') {
     for (const [playerId, m] of conversation.doc.participants) {
-      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)
-        ?.name;
+      const playerName = descriptions?.playerDescriptions.find((p: { playerId: string }) => p.playerId === playerId)?.name;
       let started;
       if (m.status.kind === 'participating') {
         started = m.status.started;
@@ -194,8 +193,7 @@ export function Messages({
     }
   } else {
     for (const playerId of conversation.doc.participants) {
-      const playerName = descriptions?.playerDescriptions.find((p) => p.playerId === playerId)
-        ?.name;
+      const playerName = descriptions?.playerDescriptions.find((p: { playerId: string }) => p.playerId === playerId)?.name;
       const started = conversation.doc.created;
       membershipNodes.push({
         node: (

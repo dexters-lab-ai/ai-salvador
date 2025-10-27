@@ -1,4 +1,4 @@
-import { useQuery } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
 import closeImg from '../../assets/close.svg';
@@ -123,10 +123,12 @@ export default function PlayerDetails({
     playerStatus?.kind === 'participating' &&
     humanStatus?.kind === 'participating';
 
+  const handleTalkPaymentMutation = useMutation(api.x402.handleTalkPayment);
+
   const handleTalkPaymentSuccess = async (txHash: string) => {
     if (!humanPlayer || !playerId) return;
     try {
-      await api.x402.handleTalkPayment({
+      await handleTalkPaymentMutation({
         payerWallet: 'user-solana-wallet-placeholder', // This should come from client-side or facilitator
         agentId: String(playerId),
         message: 'Hello Agent!', // Default message, actual message will be typed later
