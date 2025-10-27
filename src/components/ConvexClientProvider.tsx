@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { ConvexReactClient } from 'convex/react';
 import { ConvexProviderWithClerk } from 'convex/react-clerk';
 import { useAuth } from '@clerk/clerk-react';
@@ -10,17 +10,33 @@ import { useAuth } from '@clerk/clerk-react';
  * We use localStorage so that individual users stay on the same instance.
  */
 function convexUrl(): string {
-  // Fix: Cast `import.meta` to `any` to access `env`.
-  const url = (import.meta as any).env.VITE_CONVEX_URL as string;
+  const url = import.meta.env.VITE_CONVEX_URL;
   if (!url) {
-    throw new Error('Couldn’t find the Convex deployment URL.');
+    throw new Error('Couldn\'t find the Convex deployment URL. Make sure VITE_CONVEX_URL is set in your .env file.');
   }
   return url;
 }
 
-const convex = new ConvexReactClient(convexUrl(), { unsavedChangesWarning: false });
+// Create a single Convex client instance
+let convexClient: ConvexReactClient | null = null;
+
+const getConvexClient = (): ConvexReactClient => {
+  if (!convexClient) {
+    convexClient = new ConvexReactClient(convexUrl(), { 
+      unsavedChangesWarning: false 
+    });
+  }
+  return convexClient;
+};
 
 export default function ConvexClientProvider({ children }: { children: ReactNode }) {
+  // Ensure we're in the browser before rendering the provider
+  if (typeof window === 'undefined') {
+    return <>{children}</>;
+  }
+
+  const convex = getConvexClient();
+
   return (
     <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
       {children}
