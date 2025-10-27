@@ -1,4 +1,3 @@
-
 import { PixiComponent, applyDefaultProps } from '@pixi/react';
 import * as PIXI from 'pixi.js';
 import { AnimatedSprite, WorldMap } from '../../convex/aiTown/worldMap';
@@ -39,17 +38,17 @@ export const PixiStaticMap = PixiComponent('StaticMap', {
     }
     console.log('Loading tileset from:', tilesetUrl);
         
-    const bt = PIXI.BaseTexture.from(tilesetUrl, {
+    // Load the base texture
+    const baseTexture = PIXI.BaseTexture.from(tilesetUrl, {
       scaleMode: PIXI.SCALE_MODES.NEAREST,
     });
 
     const tiles = [];
     for (let x = 0; x < numxtiles; x++) {
       for (let y = 0; y < numytiles; y++) {
-        tiles[x + y * numxtiles] = new PIXI.Texture(
-          bt,
-          new PIXI.Rectangle(x * map.tileDim, y * map.tileDim, map.tileDim, map.tileDim),
-        );
+        const frame = new PIXI.Rectangle(x * map.tileDim, y * map.tileDim, map.tileDim, map.tileDim);
+        // Create a new texture from the base texture with the specified frame
+        tiles[x + y * numxtiles] = new PIXI.Texture(baseTexture, frame);
       }
     }
     const screenxtiles = map.bgTiles[0].length;
@@ -93,7 +92,7 @@ export const PixiStaticMap = PixiComponent('StaticMap', {
         continue;
       }
       const { spritesheet, url } = animation;
-      const texture = PIXI.BaseTexture.from(url, {
+      const texture = PIXI.Texture.from(url, { // Fix: Use PIXI.Texture.from
         scaleMode: PIXI.SCALE_MODES.NEAREST,
       });
       const spriteSheet = new PIXI.Spritesheet(texture, spritesheet);
@@ -118,21 +117,10 @@ export const PixiStaticMap = PixiComponent('StaticMap', {
     }
 
     container.x = 0;
-    container.y = 0;
-
-    // Set the hit area manually to ensure `pointerdown` events are delivered to this container.
-    container.interactive = true;
-    container.hitArea = new PIXI.Rectangle(
-      0,
-      0,
-      screenxtiles * map.tileDim,
-      screenytiles * map.tileDim,
-    );
-
-    return container;
+    return container; // Explicitly return the container
   },
-
   applyProps: (instance, oldProps, newProps) => {
+    // Apply any props like `interactive`, `onpointerup` etc.
     applyDefaultProps(instance, oldProps, newProps);
   },
 });

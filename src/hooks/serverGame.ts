@@ -25,20 +25,26 @@ export function useServerGame(worldId: Id<'worlds'> | undefined): ServerGame | u
     if (!worldState || !descriptions) {
       return undefined;
     }
-    return {
-      world: new World(worldState.world),
-      agentDescriptions: parseMap(
-        descriptions.agentDescriptions,
-        AgentDescription,
-        (p) => p.agentId,
-      ),
-      playerDescriptions: parseMap(
-        descriptions.playerDescriptions,
-        PlayerDescription,
-        (p) => p.playerId,
-      ),
-      worldMap: new WorldMap(descriptions.worldMap),
-    };
+    
+    try {
+      return {
+        world: new World(worldState),
+        agentDescriptions: parseMap(
+          descriptions.agentDescriptions || {},
+          AgentDescription,
+          (p) => p.agentId,
+        ),
+        playerDescriptions: parseMap(
+          descriptions.playerDescriptions || {},
+          PlayerDescription,
+          (p) => p.playerId,
+        ),
+        worldMap: new WorldMap(descriptions.worldMap || {}),
+      };
+    } catch (error) {
+      console.error('Error initializing game state:', error);
+      return undefined;
+    }
   }, [worldState, descriptions]);
   return game;
 }

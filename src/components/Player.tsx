@@ -1,5 +1,5 @@
 import { Character } from './Character.tsx';
-import { Text, Graphics } from '@pixi/react';
+import { Text, Graphics, Sprite } from '@pixi/react';
 import * as PIXI from 'pixi.js';
 import { orientationDegrees } from '../../convex/util/geometry.ts';
 import { characters } from '../../data/characters.ts';
@@ -20,157 +20,97 @@ export type SelectElement = (element?: { kind: 'player'; id: GameId<'players'> }
 
 const logged = new Set<string>();
 
-export const Player = ({
+export const PlayerComponent = ({ // Fix: Renamed Player to PlayerComponent
   game,
   isViewer,
   player,
   onClick,
   historicalTime,
+  openPaymentModal, // New prop
+  setIsPaymentModalOpen, // New prop
 }: {
   game: ServerGame;
   isViewer: boolean;
   player: ServerPlayer;
-
   onClick: SelectElement;
-  historicalTime?: number;
+  historicalTime: number | undefined;
+  openPaymentModal: React.Dispatch<any>;
+  setIsPaymentModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
-  const playerDescription = game.playerDescriptions.get(player.id);
-  const playerCharacter = playerDescription?.character;
-  if (!playerCharacter) {
-    throw new Error(`Player ${player.id} has no character`);
-  }
-  const character = characters.find((c) => c.name === playerCharacter);
+  const { worldId, worldMap, playerDescriptions } = game;
 
-  const locationBuffer = game.world.historicalLocations?.get(player.id);
-  const historicalLocation = useHistoricalValue<Location>(
+  const playerDescription = playerDescriptions.get(player.id);
+  if (!playerDescription) {
+    // We don't have a description for this player yet, so don't render them.
+    return null;
+  }
+  const tileDim = worldMap.tileDim;
+
+  const char = characters.find((c) => c.name === player.characterName);
+  if (!char) {
+    return null; // Don't render if character not found.
+  }
+  const { textureUrl, spritesheetData, speed } = char;
+
+  const historicalPlayer = useHistoricalValue(
     locationFields,
     historicalTime,
     playerLocation(player),
-    locationBuffer,
+    game.world.historicalLocations?.get(player.id),
   );
-  if (!character) {
-    if (!logged.has(playerCharacter)) {
-      logged.add(playerCharacter);
-      toast.error(`Unknown character ${playerCharacter}`);
+  if (!historicalPlayer) {
+    if (!logged.has(player.id)) {
+      console.warn(`No historical player for ${player.id}`);
+      logged.add(player.id);
     }
     return null;
   }
 
-  if (!historicalLocation) {
-    return null;
+  const { x, y, dx, dy, speed: currentSpeed } = historicalPlayer;
+
+  let emoji = player.activity?.emoji;
+  if (currentSpeed > 0) {
+    emoji = '💨'; // Override activity emoji with speed burst
+  }
+  if (player.id === 'p:0' && isViewer) {
+    // Only President Bukele can have a meeting bubble
+    const villageState = useQuery(api.world.villageState as any, {});
+    if (villageState?.meeting) {
+      emoji = '👑';
+    }
   }
 
-  const isSpeaking = !![...game.world.conversations.values()].find(
-    (c) => c.isTyping?.playerId === player.id,
-  );
+  const isMoving = currentSpeed > 0;
+  const rotation = orientationDegrees({ dx, dy });
+  const isDancing = game.world.players.get(player.id)?.activity?.description.includes('Partying') || false;
+
   const isThinking =
-    !isSpeaking &&
-    !![...game.world.agents.values()].find(
-      (a) => a.playerId === player.id && !!a.inProgressOperation,
-    );
-  const isDancing =
-    !!player.activity?.description.includes('Partying') &&
-    (player.activity.until > (historicalTime ?? Date.now()));
-  const tileDim = game.worldMap.tileDim;
-  const historicalFacing = { dx: historicalLocation.dx, dy: historicalLocation.dy };
+    game.world.conversations.get(player.id) === undefined &&
+    game.world.agents.get(player.id)?.inProgressOperation !== undefined;
+  const isSpeaking = game.world.playerConversation(player)?.isTyping?.playerId === player.id;
+
   const portfolio = useQuery(api.economy.getPortfolio, { playerId: player.id });
-  const isBukele = playerDescription?.name === 'President Bukele';
-  const isICE = playerDescription?.name === 'ICE';
-  const isMS13 = playerDescription?.name === 'MS-13';
-  // Quick reaction: show 🤑 briefly when a positive transaction lands for this player.
-  const recentTransactions = useQuery(api.economy.getRecentTransactions);
-  const now = Date.now();
-  const hasRecentPositive = !!recentTransactions?.some(
-    (t: any) => t.playerId === player.id && t.amount > 0 && t.timestamp > now - 5000,
-  );
-  // Determine displayed emoji priority:
-  // 1) Active activity emoji
-  // 2) Recent positive tx reaction
-  // 3) Permanent fallbacks: Bukele crown / ICE police / MS-13 robber
-  const activeEmoji =
-    player.activity && player.activity.until > (historicalTime ?? Date.now())
-      ? player.activity?.emoji
-      : undefined;
-  const displayEmoji =
-    activeEmoji ??
-    (hasRecentPositive
-      ? '🤑'
-      : isBukele
-      ? '👑'
-      : isICE
-      ? '🚔'
-      : isMS13
-      ? '🦹'
-      : undefined);
+
+  const onClickCallback = useCallback(() => {
+    onClick({ kind: 'player', id: player.id });
+  }, [onClick, player.id]);
 
   return (
-    <>
-      {/* Colored circle under all human tourists for visual distinction */}
-      {player.human && (
-        <HumanIndicator
-          x={historicalLocation.x * tileDim + tileDim / 2}
-          y={historicalLocation.y * tileDim + tileDim / 2 + 10}
-          id={player.id}
-        />
-      )}
-      <Character
-        x={historicalLocation.x * tileDim + tileDim / 2}
-        y={historicalLocation.y * tileDim + tileDim / 2}
-        orientation={orientationDegrees(historicalFacing)}
-        isMoving={historicalLocation.speed > 0}
-        isThinking={isThinking}
-        isSpeaking={isSpeaking}
-        isDancing={isDancing}
-        emoji={displayEmoji}
-        isViewer={isViewer}
-        textureUrl={character.textureUrl}
-        spritesheetData={character.spritesheetData}
-        speed={character.speed}
-        btcBalance={portfolio?.btcBalance ?? 0}
-        onClick={() => {
-          onClick({ kind: 'player', id: player.id });
-        }}
-      />
-    </>
+    <Character
+      textureUrl={textureUrl}
+      spritesheetData={spritesheetData}
+      x={x * tileDim}
+      y={y * tileDim}
+      orientation={rotation}
+      isMoving={isMoving}
+      isThinking={isThinking}
+      isSpeaking={isSpeaking}
+      isDancing={isDancing}
+      emoji={emoji}
+      isViewer={isViewer}
+      speed={speed}
+      btcBalance={portfolio?.btcBalance}
+      onClick={onClickCallback}
+    />
   );
 };
-function HumanIndicator({ x, y, id }: { x: number; y: number; id: string }) {
-  const draw = useCallback((g: PIXI.Graphics) => {
-    g.clear();
-    const color = colorFromId(id);
-    g.beginFill(color, 0.45);
-    g.drawCircle(0, 10, 12);
-    g.endFill();
-  }, [id]);
-  return <Graphics x={x} y={y} draw={draw} />;
-}
-
-function colorFromId(id: string): number {
-  // Simple stable hash to HSL -> convert to hex number for PIXI
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  const hue = Math.abs(hash) % 360;
-  const [r, g, b] = hslToRgb(hue / 360, 0.65, 0.55);
-  return (r << 16) + (g << 8) + b;
-}
-
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  if (s === 0) {
-    const v = Math.round(l * 255);
-    return [v, v, v];
-  }
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const toC = (t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  const r = Math.round(toC(h + 1 / 3) * 255);
-  const g = Math.round(toC(h) * 255);
-  const b = Math.round(toC(h - 1 / 3) * 255);
-  return [r, g, b];
-}

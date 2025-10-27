@@ -1,9 +1,10 @@
 import { v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
-import { internal } from './_generated/api';
+import { internal, api } from './_generated/api';
+import { GameId, playerId } from './aiTown/ids';
 
 const HUSTLE_SUCCESS_RATE = 0.1;
-const EARNING_RATE = 0.1;
+const EARNING_RATE = 0.1; // This is earnings from conversation, not necessarily reward distribution
 
 export const hustle = internalMutation({
   args: {
@@ -314,5 +315,123 @@ export const earnFromConversation = internalMutation({
         });
       }
     }
+  },
+});
+
+export const determineAndQueueReward = internalMutation({
+  args: {
+    payerWallet: v.string(),
+    interactionId: v.string(), // e.g., txHash from x402 payment
+    worldId: v.id('worlds'),
+  },
+  handler: async (ctx, { payerWallet, interactionId, worldId }) => {
+    // Reward a random player who is `isJoined: true`
+    const users = await ctx.db.query('users').filter((q) => q.eq(q.field('isJoined'), true)).collect();
+    if (!users.length) {
+      console.warn('No joined users found for reward distribution.');
+      return;
+    }
+
+    const eligibleRecipients = users.filter(user => user.wallet !== payerWallet);
+    if (eligibleRecipients.length === 0) {
+      console.warn('No eligible recipients (other than the payer) for reward distribution.');
+      return;
+    }
+
+    // Select a random winner from eligible recipients
+    const winner = eligibleRecipients[Math.floor(Math.random() * eligibleRecipients.length)];
+    const rewardAmount = 0.005; // Fixed USDC amount for reward
+
+    // Record the pending reward in the 'rewards' table
+    const rewardId = await ctx.db.insert('rewards', {
+      receiverWallet: winner.wallet,
+      amount: rewardAmount,
+      status: 'pending',
+      timestamp: Date.now(),
+      interactionId,
+    });
+
+    // Schedule an action to actually distribute the reward on-chain via the Express server
+    await ctx.scheduler.runAfter(0, internal.economy.queueSolanaReward, {
+      rewardId,
+      receiverWallet: winner.wallet,
+      amount: rewardAmount,
+    });
+
+    console.log(`[Economy] Queued reward for ${winner.wallet} (ID: ${rewardId}) from interaction ${interactionId}`);
+    return { success: true, rewardId };
+  },
+});
+
+// This action is called by Convex to trigger the Express server to send the actual Solana transaction
+export const queueSolanaReward = internalMutation({
+  args: {
+    rewardId: v.id('rewards'),
+    receiverWallet: v.string(),
+    amount: v.number(),
+  },
+  handler: async (ctx, { rewardId, receiverWallet, amount }) => {
+    try {
+      const facilitatorUrl = process.env.FACILITATOR_URL || 'http://localhost:4000';
+      const response = await fetch(`${facilitatorUrl}/distribute-reward`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          receiverWallet,
+          amount,
+          rewardId: rewardId.toString(), // Pass Convex ID for callback
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Facilitator /distribute-reward failed: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json();
+      if (data.success && data.txHash) {
+        await ctx.runMutation(internal.economy.recordDistributedReward, {
+          rewardId,
+          txHash: data.txHash,
+        });
+      } else {
+        throw new Error(`Facilitator /distribute-reward returned success: false or missing txHash`);
+      }
+    } catch (error) {
+      console.error(`[Economy] Failed to queue Solana reward for ${receiverWallet} (ID: ${rewardId}):`, error);
+      await ctx.db.patch(rewardId, { status: 'failed' });
+    }
+  },
+});
+
+export const recordDistributedReward = internalMutation({
+  args: {
+    rewardId: v.id('rewards'),
+    txHash: v.string(),
+  },
+  handler: async (ctx, { rewardId, txHash }) => {
+    await ctx.db.patch(rewardId, {
+      status: 'distributed',
+      txHash,
+    });
+    console.log(`[Economy] Reward ${rewardId} distributed with Tx: ${txHash}`);
+    return { success: true };
+  },
+});
+
+// Query for fetching a player's reward history
+export const getRewardHistory = query({
+  args: {
+    wallet: v.string(),
+  },
+  handler: async (ctx, { wallet }) => {
+    // Filter rewards by receiverWallet and order by timestamp descending
+    return await ctx.db
+      .query('rewards')
+      .withIndex('by_receiverWallet', (q) => q.eq('receiverWallet', wallet))
+      .order('desc')
+      .collect();
   },
 });

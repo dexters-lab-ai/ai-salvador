@@ -1,0 +1,15 @@
+{
+  "name": "X402 AI Town",
+  "description": "X402 AI Town: A virtual town where AI characters live, chat, socialize, and participate in a payment-driven economy powered by Solana's x402 protocol.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "permissions": [
+    "autoplay",
+    "audio"
+  ],
+  "features": [
+    "Cross-Origin-Embedder-Policy: require-corp",
+    "Cross-Origin-Opener-Policy: same-origin"
+  ]
+}

@@ -1,5 +1,4 @@
-
-// Based on https://codepen.io/inlet/pen/yLVmPWv.
+// Based on https://codepen.io/inlet/p/yLVmPWv.
 // Copyright (c) 2018 Patrick Brouwer, distributed under the MIT license.
 
 import { PixiComponent, useApp } from '@pixi/react';

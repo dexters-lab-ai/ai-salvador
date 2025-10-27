@@ -20,11 +20,12 @@ export abstract class AbstractGame {
   abstract saveStep(ctx: ActionCtx, engineUpdate: EngineUpdate): Promise<void>;
 
   async runStep(ctx: ActionCtx, now: number) {
+    // Explicitly cast arguments for loadInputs to help TypeScript resolve types
     const inputs = await ctx.runQuery(internal.engine.abstractGame.loadInputs, {
       engineId: this.engine._id,
       processedInputNumber: this.engine.processedInputNumber,
       max: this.maxInputsPerStep,
-    });
+    } as { engineId: Id<'engines'>; processedInputNumber: number | undefined; max: number });
 
     const lastStepTs = this.engine.currentTime;
     const startTs = lastStepTs ? lastStepTs + this.tickDuration : now;
@@ -116,9 +117,6 @@ export async function loadEngine(
 ) {
   const engine = await db.get(engineId);
   if (!engine) {
-    throw new Error(`No engine found with id ${engineId}`);
-  }
-  if (!engine.running) {
     throw new ConvexError({
       kind: 'engineNotRunning',
       message: `Engine ${engineId} is not running`,

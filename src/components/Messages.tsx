@@ -27,12 +27,14 @@ export function Messages({
   isMeetingActive: boolean;
 }) {
   const humanPlayerId = humanPlayer?.id;
-  const descriptions = useQuery(api.world.gameDescriptions, { worldId });
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const descriptions = useQuery(api.world.gameDescriptions as any, { worldId });
   const messages = useQuery(api.messages.listMessages, {
     worldId,
     conversationId: conversation.doc.id,
   });
-  const meetingNotes = useQuery(api.world.getLatestMeetingNotes, worldId ? { worldId } : 'skip');
+  // Fix: Call newly added getLatestMeetingNotes query
+  const meetingNotes = useQuery(api.world.getLatestMeetingNotes as any, worldId ? { worldId } : 'skip');
 
   let currentlyTyping = conversation.kind === 'active' ? conversation.doc.isTyping : undefined;
   if (messages !== undefined && currentlyTyping) {
@@ -66,6 +68,7 @@ export function Messages({
     otherPlayerId ? { playerId: otherPlayerId as any } : 'skip',
   );
   // If the other agent is actively reading the news, prefer their current activity.article
+  // Fix: Call newly added getPlayerActivity query
   const otherActivity = useQuery(
     api.world.getPlayerActivity,
     otherPlayerId ? ({ worldId, playerId: otherPlayerId as any } as any) : 'skip',

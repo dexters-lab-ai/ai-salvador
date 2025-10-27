@@ -13,6 +13,8 @@ export default function Treasury({ compact = false }: { compact?: boolean }) {
     api.economy.getAgentPortfolios,
     worldId ? { worldId } : 'skip',
   );
+  const paymentsCollected = useQuery(api.x402.getTotalPaymentsCollected, worldId ? { worldId } : 'skip');
+
 
   if (!villageState) {
     return null;
@@ -43,7 +45,7 @@ export default function Treasury({ compact = false }: { compact?: boolean }) {
         <div className={`flex items-center ${isExpanded ? '' : 'sm:flex'} ${isExpanded ? '' : 'hidden sm:flex'}`}>
           <img src={potOfGoldImg} alt="Treasury" className="w-10 h-10 mr-2" />
           <div className="hidden sm:block">
-            {!compact && <div className="font-bold text-md">AI Salvador Treasury</div>}
+            {!compact && <div className="font-bold text-md">X402 AI Town Treasury</div>}
             <div className={`font-bold ${compact ? 'text-base' : 'text-lg'} ${sentimentColor}`}>{treasury.toFixed(4)} BTC</div>
             {!compact && (
               <div className="text-sm text-gray-400">
@@ -76,9 +78,9 @@ export default function Treasury({ compact = false }: { compact?: boolean }) {
           {!compact && (
             <>
               <div className="pt-4 border-t border-gray-600">
-                <h3 className="text-lg font-bold">Tourist Information</h3>
-                <p className="text-2xl font-bold text-yellow-300">{villageState.touristCount} Tourists</p>
-                <p className="text-sm text-gray-400">The treasury grows from tourist visits. Each tourist pays a small tax to enter.</p>
+                <h3 className="text-lg font-bold">x402 Payments Collected</h3>
+                <p className="text-2xl font-bold text-yellow-300">{paymentsCollected ?? 0} Payments</p>
+                <p className="text-sm text-gray-400">Total payments collected via the x402 protocol.</p>
               </div>
               <div className="pt-4 border-t border-gray-600">
                 <h3 className="text-lg font-bold">Agent Economy</h3>

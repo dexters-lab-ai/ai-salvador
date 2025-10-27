@@ -1,5 +1,5 @@
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
-import PixiGame from './PixiGame.tsx';
+import { PixiGame } from './PixiGame.tsx';
 
 import { useElementSize } from 'usehooks-ts';
 import { Stage } from '@pixi/react';
@@ -15,7 +15,7 @@ import { useServerGame } from '../hooks/serverGame.ts';
 import { Viewport } from 'pixi-viewport';
 import * as PIXI from 'pixi.js';
 
-// Fix: Cast `import.meta` to `any` to access `env` without a type error.
+// Fix: Cast `import.meta` to `any` to avoid TypeScript errors.
 export const SHOW_DEBUG_UI = !!(import.meta as any).env.VITE_SHOW_DEBUG_UI;
 
 export default function Game({
@@ -24,12 +24,16 @@ export default function Game({
   isChaseActive,
   isMeetingActive,
   isPartyActive,
+  openPaymentModal, // New prop
+  setIsPaymentModalOpen, // New prop
 }: {
   isExpanded: boolean;
   setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isChaseActive: boolean;
   isMeetingActive: boolean;
   isPartyActive: boolean;
+  openPaymentModal: Dispatch<any>; // Setter for paymentDetails state in App.tsx
+  setIsPaymentModalOpen: Dispatch<SetStateAction<boolean>>; // Setter for payment modal open state in App.tsx
 }) {
   const convex = useConvex();
   const [selectedElement, setSelectedElement] = useState<{
@@ -49,11 +53,13 @@ export default function Game({
   // Send a periodic heartbeat to our world to keep it alive.
   useWorldHeartbeat();
 
-  const worldState = useQuery(api.world.worldState, worldId ? { worldId } : 'skip');
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const worldState = useQuery(api.world.worldState as any, worldId ? { worldId } : 'skip');
   const { historicalTime, timeManager } = useHistoricalTime(worldState?.engine);
   const scrollViewRef = useRef<HTMLDivElement>(null);
 
-  const userPlayerDoc = useQuery(api.players.user, worldId ? { worldId } : 'skip');
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const userPlayerDoc = useQuery(api.players.user as any, worldId ? { worldId } : 'skip');
   const userPlayer =
     userPlayerDoc && game ? game.world.players.get(userPlayerDoc.id as GameId<'players'>) : undefined;
 
@@ -240,6 +246,8 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
                       viewportRef={viewportRef}
                       isPartyActive={isPartyActive}
                       isMeetingActive={isMeetingActive}
+                      openPaymentModal={openPaymentModal}
+                      setIsPaymentModalOpen={setIsPaymentModalOpen}
                     />
                   </ConvexProvider>
                 </Stage>
@@ -262,6 +270,8 @@ https://github.com/michalochman/react-pixi-fiber/issues/145#issuecomment-5315492
             setSelectedElement={setSelectedElement}
             scrollViewRef={scrollViewRef}
             isMeetingActive={isMeetingActive}
+            openPaymentModal={openPaymentModal}
+            setIsPaymentModalOpen={setIsPaymentModalOpen}
           />
         </div>
       </div>

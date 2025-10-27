@@ -13,9 +13,12 @@ import { playerId } from './aiTown/ids';
 import { kickEngine, startEngine, stopEngine } from './aiTown/main';
 import { engineInsertInput } from './engine/abstractGame';
 import { fetchEmbedding } from './util/llm';
+import { Doc, Id } from './_generated/dataModel';
+import type { MutationCtx, QueryCtx } from './_generated/server';
+import { GameId } from './aiTown/ids';
 
 export const defaultWorldStatus = query({
-  handler: async (ctx) => {
+  handler: async (ctx: QueryCtx) => {
     const worldStatus = await ctx.db
       .query('worldStatus')
       .filter((q) => q.eq(q.field('isDefault'), true))
@@ -24,11 +27,44 @@ export const defaultWorldStatus = query({
   },
 });
 
+// New internal mutation to manage chase trigger fallback
+export const triggerChaseIfNeeded = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    conversationId: v.string(), // The conversation that might trigger the chase
+  },
+  handler: async (ctx: MutationCtx, { worldId, conversationId }: { worldId: Id<'worlds'>; conversationId: string }) => {
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
+    if (!world) return;
+
+    // Check if the conversation is still active
+    const activeConversation = world.conversations.find((c) => c.id === conversationId);
+    if (!activeConversation) {
+      console.log(`Conversation ${conversationId} ended before chase trigger.`);
+      return;
+    }
+
+    // Find ICE and MS-13 in the current conversation
+    const playerDescriptions = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', worldId))
+      .collect();
+    const ice = playerDescriptions.find((p) => p.name === 'ICE');
+    const ms13 = playerDescriptions.find((p) => p.name === 'MS-13');
+
+    if (ice && ms13 && activeConversation.participants.some(p => p.playerId === ice.playerId) && activeConversation.participants.some(p => p.playerId === ms13.playerId)) {
+      console.log('Fallback: Triggering chase due to 8s timeout in ICE/MS-13 conversation.');
+      await ctx.runMutation(api.world.triggerChase, { worldId });
+    }
+  },
+});
+
+
 // Re-issue meeting move orders for stragglers a few times (party-style nudge without gating)
 export const nudgeMeetingMovers = internalMutation({
   args: { worldId: v.id('worlds'), attempt: v.number() },
-  handler: async (ctx, { worldId, attempt }) => {
-    const world = await ctx.db.get(worldId);
+  handler: async (ctx: MutationCtx, { worldId, attempt }: { worldId: Id<'worlds'>; attempt: number }) => {
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
     if (!world) return;
     const playerDescriptions = await ctx.db
       .query('playerDescriptions')
@@ -41,16 +77,16 @@ export const nudgeMeetingMovers = internalMutation({
     for (let y = minY; y <= maxY; y += spacing) {
       for (let x = minX; x <= maxX; x += spacing) targets.push({ x, y });
     }
-    const others = world.agents.filter((a: any) => a.playerId !== bukele.playerId);
+    const others = world.agents.filter((a) => a.playerId !== bukele.playerId); // Explicitly type a
     let idx = 0;
     for (const agent of others) {
-      const p = world.players.find((pl: any) => pl.id === agent.playerId);
+      const p = world.players.find((pl) => pl.id === agent.playerId); // Explicitly type pl
       if (!p) continue;
       const atPlaza = Math.floor(p.position.x) >= minX && Math.floor(p.position.x) <= maxX && Math.floor(p.position.y) >= minY && Math.floor(p.position.y) <= maxY;
       if (atPlaza) continue;
       const dest = targets[Math.min(idx, targets.length - 1)];
       idx++;
-      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: agent.playerId, destination: dest as any } as any);
+      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: agent.playerId, destination: dest });
     }
     if (attempt < 3) {
       await ctx.scheduler.runAfter(15_000, internal.world.nudgeMeetingMovers, { worldId, attempt: attempt + 1 });
@@ -61,8 +97,8 @@ export const nudgeMeetingMovers = internalMutation({
 // Start the meeting as soon as Bukele reaches the podium (45,17)
 export const startMeetingWhenBukeleArrives = internalMutation({
   args: { worldId: v.id('worlds'), attempt: v.number() },
-  handler: async (ctx, { worldId, attempt }) => {
-    const world = await ctx.db.get(worldId);
+  handler: async (ctx: MutationCtx, { worldId, attempt }: { worldId: Id<'worlds'>; attempt: number }) => {
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
     if (!world) return;
     const playerDescriptions = await ctx.db
       .query('playerDescriptions')
@@ -70,24 +106,71 @@ export const startMeetingWhenBukeleArrives = internalMutation({
       .collect();
     const bukele = playerDescriptions.find((d) => d.name === 'President Bukele');
     if (!bukele) return;
-    const speaker = world.players.find((p: any) => p.id === bukele.playerId);
+    const speaker = world.players.find((p) => p.id === bukele.playerId); // Explicitly type p
     if (speaker) {
       const x = Math.floor(speaker.position.x);
       const y = Math.floor(speaker.position.y);
       if (Math.abs(x - 45) <= 1 && Math.abs(y - 17) <= 1) {
+        // Fix: Call the newly added `conductMeeting` internal mutation
         await ctx.scheduler.runAfter(0, internal.world.conductMeeting, { worldId });
         return;
       }
     }
     // Retry up to a generous number of times; continue gathering like a party
     if (attempt < 300) {
-      await ctx.scheduler.runAfter(1000, (internal.world as any).startMeetingWhenBukeleArrives, {
+      await ctx.scheduler.runAfter(1000, internal.world.startMeetingWhenBukeleArrives, {
         worldId,
         attempt: attempt + 1,
       });
     }
   },
 });
+
+// New internal mutation to conduct the actual town meeting
+export const conductMeeting = internalMutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const villageState = await ctx.db.query('villageState').unique();
+    if (!villageState) throw new Error('Village state not found.');
+
+    const playerDescriptions = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', worldId))
+      .collect();
+    const bukele = playerDescriptions.find((d) => d.name === 'President Bukele');
+    if (!bukele) throw new Error('President Bukele not found.');
+
+    const summary = 'The town meeting covered the strong Bitcoin price performance, encouraging citizens to continue holding BTC and supporting local economic activities. President Bukele emphasized continued growth and stability.';
+
+    await ctx.db.patch(villageState._id, {
+      meeting: {
+        speakerId: bukele.playerId,
+        summary,
+        startTime: Date.now(),
+      },
+      lastMeetingTime: Date.now(), // Update cooldown
+    });
+    console.log(`Town meeting started, Bukele is speaking: ${summary}`);
+
+    // Schedule the meeting to end after a duration, e.g., 5 minutes
+    await ctx.scheduler.runAfter(300_000, internal.world.endMeeting, { worldId }); // 5 minutes
+  },
+});
+
+// New internal mutation to end the town meeting
+export const endMeeting = internalMutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const villageState = await ctx.db.query('villageState').unique();
+    if (villageState && villageState.meeting) {
+      await ctx.db.patch(villageState._id, { meeting: undefined }); // Set to undefined to clear optional field
+      console.log('Town meeting ended.');
+      // After the meeting, transfer all balances to Bukele.
+      await ctx.scheduler.runAfter(0, internal.economy.transferAllToBukele, { worldId });
+    }
+  },
+});
+
 
 export const monitorChase = internalMutation({
   args: {
@@ -100,13 +183,13 @@ export const monitorChase = internalMutation({
     bothArrivalTs: v.optional(v.number()),
   },
   handler: async (
-    ctx,
-    { worldId, icePlayerId, ms13PlayerId, destX, destY, attempt, bothArrivalTs },
+    ctx: MutationCtx,
+    { worldId, icePlayerId, ms13PlayerId, destX, destY, attempt, bothArrivalTs }: { worldId: Id<'worlds'>; icePlayerId: string; ms13PlayerId: string; destX: number; destY: number; attempt: number; bothArrivalTs?: number },
   ) => {
-    const world = await ctx.db.get(worldId);
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
     if (!world) return;
     const arrived = (pid: string) => {
-      const p = world.players.find((pl: any) => pl.id === pid);
+      const p = world.players.find((pl) => pl.id === pid); // Explicitly type pl
       if (!p) return false;
       const x = Math.floor(p.position.x);
       const y = Math.floor(p.position.y);
@@ -122,16 +205,16 @@ export const monitorChase = internalMutation({
         playerId: icePlayerId,
         description: 'Waiting at cave entrance...'
         , emoji: '⏳', durationMs: 20000,
-      } as any);
-      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: icePlayerId, destination: null } as any);
+      });
+      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: icePlayerId, destination: null });
     }
     if (ms13Arrived && !iceArrived) {
       await insertInput(ctx, worldId, 'setActivity', {
         playerId: ms13PlayerId,
         description: 'Waiting at cave entrance...'
         , emoji: '⏳', durationMs: 20000,
-      } as any);
-      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: ms13PlayerId, destination: null } as any);
+      });
+      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: ms13PlayerId, destination: null });
     }
     // If both have arrived, start or check a 10s dwell timer before reset
     if (iceArrived && ms13Arrived) {
@@ -149,6 +232,7 @@ export const monitorChase = internalMutation({
         return;
       }
       if (now - bothArrivalTs >= 5_000) {
+        // Fix: Call the newly added `resetChase` internal mutation
         await ctx.scheduler.runAfter(0, internal.world.resetChase, {
           worldId,
           icePlayerId,
@@ -170,6 +254,7 @@ export const monitorChase = internalMutation({
     // Safety cap to avoid infinite loops (e.g., 30s total)
     if (attempt >= 60) {
       // allow up to ~60s tracking
+      // Fix: Call the newly added `resetChase` internal mutation
       await ctx.scheduler.runAfter(0, internal.world.resetChase, {
         worldId,
         icePlayerId,
@@ -190,14 +275,72 @@ export const monitorChase = internalMutation({
   },
 });
 
+// New internal mutation to reset chase status
+export const resetChase = internalMutation({
+  args: {
+    worldId: v.id('worlds'),
+    icePlayerId: v.string(),
+    ms13PlayerId: v.string(),
+  },
+  handler: async (ctx: MutationCtx, { worldId, icePlayerId, ms13PlayerId }: { worldId: Id<'worlds'>; icePlayerId: string; ms13PlayerId: string }) => {
+    // Reset any chase-related activities or speed multipliers
+    await insertInput(ctx, worldId, 'setActivity', {
+      playerId: icePlayerId as GameId<'players'>,
+      description: 'Patrolling for MS-13',
+      emoji: '🚔',
+      durationMs: 300000, // 5 minutes
+    });
+    await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: icePlayerId as GameId<'players'>, multiplier: null });
+    await insertInput(ctx, worldId, 'forceMoveTo', { playerId: icePlayerId as GameId<'players'>, destination: null });
+
+    await insertInput(ctx, worldId, 'setActivity', {
+      playerId: ms13PlayerId as GameId<'players'>,
+      description: 'Blending in',
+      emoji: '🦹',
+      durationMs: 300000, // 5 minutes
+    });
+    await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: ms13PlayerId as GameId<'players'>, multiplier: null });
+    await insertInput(ctx, worldId, 'forceMoveTo', { playerId: ms13PlayerId as GameId<'players'>, destination: null });
+
+    console.log('Chase reset.');
+  },
+});
+
+// New internal mutation to ensure ICE and MS-13 exist
+export const ensurePoliceAndRobber = internalMutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const playerDescriptions = await ctx.db
+      .query('playerDescriptions')
+      .withIndex('worldId', (q) => q.eq('worldId', worldId))
+      .collect();
+    const ice = playerDescriptions.find((p) => p.name === 'ICE');
+    const ms13 = playerDescriptions.find((p) => p.name === 'MS-13');
+    if (!ice) {
+      const iceDescIndex = Descriptions.findIndex(d => d.name === 'ICE');
+      if (iceDescIndex !== -1) {
+        console.log('Creating missing ICE agent...');
+        await insertInput(ctx, worldId, 'createAgent', { descriptionIndex: iceDescIndex });
+      }
+    }
+    if (!ms13) {
+      const ms13DescIndex = Descriptions.findIndex(d => d.name === 'MS-13');
+      if (ms13DescIndex !== -1) {
+        console.log('Creating missing MS-13 agent...');
+        await insertInput(ctx, worldId, 'createAgent', { descriptionIndex: ms13DescIndex });
+      }
+    }
+  },
+});
+
 // Admin/public trigger to start a cave chase between ICE and MS-13.
 export const triggerChase = mutation({
   args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
     // Check cooldown
     const villageState = await ctx.db.query('villageState').unique();
     const now = Date.now();
-    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000;
     
     if (villageState?.lastChaseTime && now - villageState.lastChaseTime < cooldownMs) {
       const remainingMinutes = Math.ceil((villageState.lastChaseTime + cooldownMs - now) / (60 * 1000));
@@ -208,7 +351,7 @@ export const triggerChase = mutation({
     if (villageState) {
       await ctx.db.patch(villageState._id, { lastChaseTime: now });
     }
-    const world = await ctx.db.get(worldId);
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
     if (!world) throw new Error(`Invalid world ID: ${worldId}`);
     const worldStatus = await ctx.db
       .query('worldStatus')
@@ -226,485 +369,164 @@ export const triggerChase = mutation({
     const bukele = playerDescriptions.find((p) => p.name === 'President Bukele');
     if (!ice || !ms13) {
       // Ensure they exist then return; next heartbeat can retrigger
+      // Fix: Call the newly added `ensurePoliceAndRobber` internal mutation
       await ctx.scheduler.runAfter(0, internal.world.ensurePoliceAndRobber, { worldId });
       throw new Error('ICE or MS-13 missing; ensured and please retry');
     }
 
     // NEW: If they're in a conversation, end it first.
     const conversation = world.conversations.find((c) => {
-      const participants = c.participants.map((p) => p.playerId);
+      const participants = [...c.participants.values()].map((p) => p.playerId); // Get playerIds from ConversationMembership objects
       return participants.includes(ice.playerId) && participants.includes(ms13.playerId);
     });
     if (conversation) {
-      console.log(`Ending conversation ${conversation.id} to start chase...`);
-      await insertInput(ctx, worldId, 'leaveConversation', {
-        playerId: ice.playerId,
-        conversationId: conversation.id,
-      });
-      await insertInput(ctx, worldId, 'leaveConversation', {
-        playerId: ms13.playerId,
-        conversationId: conversation.id,
-      });
+      console.log(`Ending conversation ${conversation.id} between ICE and MS-13 to start chase.`);
+      await insertInput(ctx, worldId, 'leaveConversation', { playerId: ice.playerId, conversationId: conversation.id });
+      await insertInput(ctx, worldId, 'leaveConversation', { playerId: ms13.playerId, conversationId: conversation.id });
+      // Wait a moment for the leave to process
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    const dest = { x: 5, y: 45 } as any;
-    // Set activities and speed multipliers
+    // Assign chase activity, speed multiplier, and destination
     await insertInput(ctx, worldId, 'setActivity', {
       playerId: ice.playerId,
-      description: 'Chase MS-13',
-      emoji: '🚔',
-      durationMs: 10000,
-    } as any);
+      description: 'Chase MS-13...',
+      emoji: '🚨',
+      durationMs: 60000, // 1 minute
+    });
+    await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: ice.playerId, multiplier: 1.5 });
+    await insertInput(ctx, worldId, 'forceMoveTo', { playerId: ice.playerId, destination: { x: 32, y: 31 } }); // Cave entrance
+
     await insertInput(ctx, worldId, 'setActivity', {
       playerId: ms13.playerId,
-      description: 'Run for border',
+      description: 'Run for border...',
       emoji: '🏃',
-      durationMs: 10000,
-    } as any);
-    await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-      playerId: ice.playerId,
-      multiplier: 1.8,
-    } as any);
-    await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-      playerId: ms13.playerId,
-      multiplier: 2.0,
-    } as any);
-
-    // Force both to move to cave destination
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: ice.playerId,
-      destination: dest,
-    } as any);
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: ms13.playerId,
-      destination: dest,
-    } as any);
-
-    // Also dispatch President Bukele to a separate emergency location and keep him until reset
-    if (bukele) {
-      // Send Bukele to the tent area during chase
-      const emergency = { x: 40, y: 8 } as any;
-      await insertInput(ctx, worldId, 'setActivity', {
-        playerId: bukele.playerId,
-        description: 'Rushing to emergency room...',
-        emoji: '🏥',
-        durationMs: 10000,
-      } as any);
-      // Match speed to ICE for urgency
-      await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-        playerId: bukele.playerId,
-        multiplier: 1.8,
-      } as any);
-      await insertInput(ctx, worldId, 'forceMoveTo', {
-        playerId: bukele.playerId,
-        destination: emergency,
-      } as any);
-    }
-
-    // Monitor arrival and then reset; avoids prematurely cutting off the chase
+      durationMs: 60000,
+    });
+    await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: ms13.playerId, multiplier: 1.8 });
+    await insertInput(ctx, worldId, 'forceMoveTo', { playerId: ms13.playerId, destination: { x: 33, y: 30 } }); // Border tunnel
+    
+    // Start monitoring the chase
     await ctx.scheduler.runAfter(1000, internal.world.monitorChase, {
       worldId,
       icePlayerId: ice.playerId,
       ms13PlayerId: ms13.playerId,
-      destX: 5,
-      destY: 45,
+      destX: 33, // Target X for the cave/border
+      destY: 30, // Target Y for the cave/border
       attempt: 0,
-      bothArrivalTs: undefined,
     });
+
+    console.log(`Chase started in world ${worldId} between ${ice.name} and ${ms13.name}`);
+    return { success: true };
   },
 });
 
-export const triggerChaseIfNeeded = internalAction({
-  args: { worldId: v.id('worlds'), conversationId: v.string() },
-  handler: async (ctx, args) => {
-    const worldState = await ctx.runQuery(api.world.worldState, { worldId: args.worldId });
-    if (!worldState) {
-      console.error(`World ${args.worldId} not found for chase trigger.`);
-      return;
+
+// Admin/public trigger to start a town meeting
+export const gatherAll = mutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const villageState = await ctx.db.query('villageState').unique();
+    const now = Date.now();
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000;
+
+    if (villageState?.lastMeetingTime && now - villageState.lastMeetingTime < cooldownMs) {
+      const remainingMinutes = Math.ceil((villageState.lastMeetingTime + cooldownMs - now) / (60 * 1000));
+      throw new Error(`Meeting is on cooldown. Please wait ${remainingMinutes} more minutes.`);
     }
-    const conversationExists = worldState.world.conversations.some(
-      (c) => c.id === args.conversationId,
-    );
-    if (conversationExists) {
-      console.log(`8s fallback: triggering chase for conversation ${args.conversationId}`);
-      await ctx.runMutation(api.world.triggerChase, { worldId: args.worldId });
+
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
+    if (!world) throw new Error(`Invalid world ID: ${worldId}`);
+    const playerDescriptions = await ctx.db.query('playerDescriptions').withIndex('worldId', (q) => q.eq('worldId', worldId)).collect();
+    const bukele = playerDescriptions.find(d => d.name === 'President Bukele');
+    if (!bukele) throw new Error('President Bukele not found for the meeting.');
+
+    // Announce the meeting (this is a separate message in the chat feed)
+    // All other agents will be moved by the agent tick logic to the meeting spot.
+    await insertInput(ctx, worldId, 'setActivity', {
+      playerId: bukele.playerId,
+      description: 'Calling town meeting...',
+      emoji: '📢',
+      durationMs: 60000,
+    });
+
+    // Schedule Bukele to move to the podium (45,17)
+    await insertInput(ctx, worldId, 'forceMoveTo', { playerId: bukele.playerId, destination: { x: 45, y: 17 } });
+
+    // Start monitoring Bukele's arrival to trigger the actual meeting start
+    await ctx.scheduler.runAfter(1000, internal.world.startMeetingWhenBukeleArrives, { worldId, attempt: 0 });
+
+    // Nudge other agents towards the meeting plaza (this will be an ongoing nudge)
+    await ctx.scheduler.runAfter(10000, internal.world.nudgeMeetingMovers, { worldId, attempt: 0 });
+
+    console.log(`Town meeting called by President Bukele in world ${worldId}.`);
+    return { success: true };
+  },
+});
+
+// Admin/public trigger to start a town party
+export const triggerParty = mutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const villageState = await ctx.db.query('villageState').unique();
+    const now = Date.now();
+    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000;
+
+    if (villageState?.lastPartyTime && now - villageState.lastPartyTime < cooldownMs) {
+      const remainingMinutes = Math.ceil((villageState.lastPartyTime + cooldownMs - now) / (60 * 1000));
+      throw new Error(`Party is on cooldown. Please wait ${remainingMinutes} more minutes.`);
+    }
+
+    if (villageState) {
+      await ctx.db.patch(villageState._id, { isPartyActive: true, lastPartyTime: now });
     } else {
-      console.log(`8s fallback: conversation ${args.conversationId} ended, not triggering chase.`);
+      throw new Error('Village state not found.');
     }
+    console.log(`Party started in world ${worldId}`);
+    return { success: true };
   },
 });
 
-export const resetChase = internalMutation({
-  args: { worldId: v.id('worlds'), icePlayerId: v.string(), ms13PlayerId: v.string() },
-  handler: async (ctx, { worldId, icePlayerId, ms13PlayerId }) => {
-    // Move all BTC from MS-13 to ICE upon arrival/reset
-    await ctx.scheduler.runAfter(0, internal.economy.transferAllBalance, {
-      fromId: ms13PlayerId,
-      toId: icePlayerId,
-    });
-    await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-      playerId: icePlayerId,
-      multiplier: null,
-    } as any);
-    await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-      playerId: ms13PlayerId,
-      multiplier: null,
-    } as any);
-    // Clear activity banners quickly
-    await insertInput(ctx, worldId, 'setActivity', {
-      playerId: icePlayerId,
-      description: '',
-      emoji: undefined,
-      durationMs: 1,
-    } as any);
-    await insertInput(ctx, worldId, 'setActivity', {
-      playerId: ms13PlayerId,
-      description: '',
-      emoji: undefined,
-      durationMs: 1,
-    } as any);
-    // Stop movement by sending null destination
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: icePlayerId,
-      destination: null,
-    } as any);
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: ms13PlayerId,
-      destination: null,
-    } as any);
-    // Also clear Bukele's state if present
-    const world = await ctx.db.get(worldId);
-    if (world) {
-      const buk = world.players.find((p: any) => p.name === 'President Bukele');
-      if (buk) {
-        await insertInput(ctx, worldId, 'setSpeedMultiplier', {
-          playerId: buk.id,
-          multiplier: null,
-        } as any);
-        await insertInput(ctx, worldId, 'setActivity', {
-          playerId: buk.id,
-          description: '',
-          emoji: undefined,
-          durationMs: 1,
-        } as any);
-        await insertInput(ctx, worldId, 'forceMoveTo', {
-          playerId: buk.id,
-          destination: null,
-        } as any);
-      }
-    }
-    // Relocate both agents to random spots to resume normal behavior
-    const randomDest = () => ({
-      x: Math.floor(Math.random() * 50) + 5,
-      y: Math.floor(Math.random() * 50) + 5,
-    });
-    await ctx.scheduler.runAfter(500, internal.world.relocateAfterChase, {
-      worldId,
-      icePlayerId,
-      ms13PlayerId,
-      iceDest: randomDest(),
-      ms13Dest: randomDest(),
-    });
-  },
-});
-
-export const relocateAfterChase = internalMutation({
-  args: {
-    worldId: v.id('worlds'),
-    icePlayerId: v.string(),
-    ms13PlayerId: v.string(),
-    iceDest: v.object({ x: v.number(), y: v.number() }),
-    ms13Dest: v.object({ x: v.number(), y: v.number() }),
-  },
-  handler: async (ctx, { worldId, icePlayerId, ms13PlayerId, iceDest, ms13Dest }) => {
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: icePlayerId,
-      destination: iceDest,
-    } as any);
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: ms13PlayerId,
-      destination: ms13Dest,
-    } as any);
-  },
-});
-
-// Ensure ICE and MS-13 exist in this world; create if missing.
-export const ensurePoliceAndRobber = internalMutation({
+// Admin/public trigger to stop a town party
+export const stopParty = mutation({
   args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const worldStatus = await ctx.db
-      .query('worldStatus')
-      .withIndex('worldId', (q) => q.eq('worldId', worldId))
-      .unique();
-    if (!worldStatus) return;
-    const engineId = worldStatus.engineId;
-
-    // Helper to ensure by name
-    const ensureByName = async (name: string) => {
-      const existing = await ctx.db
-        .query('playerDescriptions')
-        .withIndex('worldId', (q) => q.eq('worldId', worldId))
-        .filter((q) => q.eq(q.field('name'), name))
-        .first();
-      if (existing) return;
-      const idx = Descriptions.findIndex((d: { name: string }) => d.name === name);
-      if (idx < 0) return;
-      await engineInsertInput(ctx, engineId, 'createAgent', { descriptionIndex: idx });
-    };
-
-    await ensureByName('ICE');
-    await ensureByName('MS-13');
+  handler: async (ctx: MutationCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    const villageState = await ctx.db.query('villageState').unique();
+    if (villageState && villageState.isPartyActive) {
+      await ctx.db.patch(villageState._id, { isPartyActive: false });
+      // When the party ends, all agents transfer their earnings to Bukele.
+      await ctx.scheduler.runAfter(0, internal.economy.transferAllToBukele, { worldId });
+      console.log(`Party ended in world ${worldId}`);
+    } else {
+      throw new Error('No active party to stop.');
+    }
+    return { success: true };
   },
 });
 
-// Ensure President Bukele exists in this world; create if missing.
-export const ensureBukele = internalMutation({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const worldStatus = await ctx.db
-      .query('worldStatus')
-      .withIndex('worldId', (q) => q.eq('worldId', worldId))
-      .unique();
-    if (!worldStatus) return;
-    const engineId = worldStatus.engineId;
-    const existing = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', (q) => q.eq('worldId', worldId))
-      .filter((q) => q.eq(q.field('name'), 'President Bukele'))
-      .first();
-    if (existing) return;
 
-    const idx = Descriptions.findIndex((d: { name: string }) => d.name === 'President Bukele');
-    if (idx < 0) return;
-
-    // Ask engine to create the agent from description index.
-    await engineInsertInput(ctx, engineId, 'createAgent', { descriptionIndex: idx });
-  },
-});
-export const heartbeatWorld = mutation({
-  args: {
-    worldId: v.id('worlds'),
-  },
-  handler: async (ctx, args) => {
-    const worldStatus = await ctx.db
-      .query('worldStatus')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .first();
-    if (!worldStatus) {
-      throw new Error(`Invalid world ID: ${args.worldId}`);
-    }
-    const now = Date.now();
-
-    // Skip the update (and then potentially make the transaction readonly)
-    // if it's been viewed sufficiently recently..
-    if (!worldStatus.lastViewed || worldStatus.lastViewed < now - WORLD_HEARTBEAT_INTERVAL / 2) {
-      await ctx.db.patch(worldStatus._id, {
-        lastViewed: Math.max(worldStatus.lastViewed ?? now, now),
-      });
-    }
-
-    // Restart inactive worlds, but leave worlds explicitly stopped by the developer alone.
-    if (worldStatus.status === 'stoppedByDeveloper') {
-      console.debug(`World ${worldStatus._id} is stopped by developer, not restarting.`);
-    }
-    if (worldStatus.status === 'inactive') {
-      console.log(`Restarting inactive world ${worldStatus._id}...`);
-      await ctx.db.patch(worldStatus._id, { status: 'running' });
-      await startEngine(ctx, worldStatus.worldId);
-    }
-
-    // Ensure core NPCs and data exist.
-    await ctx.scheduler.runAfter(0, internal.world.ensureBukele, { worldId: args.worldId });
-    await ctx.scheduler.runAfter(0, internal.world.ensurePoliceAndRobber, {
-      worldId: args.worldId,
-    });
-    await ctx.scheduler.runAfter(0, internal.economy.backfillMissingPortfolios, {
-      worldId: args.worldId,
-    });
-  },
-});
-
-export const stopInactiveWorlds = internalMutation({
-  handler: async (ctx) => {
-    const cutoff = Date.now() - IDLE_WORLD_TIMEOUT;
-    const worlds = await ctx.db.query('worldStatus').collect();
-    for (const worldStatus of worlds) {
-      if (cutoff < worldStatus.lastViewed || worldStatus.status !== 'running') {
-        continue;
-      }
-      console.log(`Stopping inactive world ${worldStatus._id}`);
-      await ctx.db.patch(worldStatus._id, { status: 'inactive' });
-      await stopEngine(ctx, worldStatus.worldId);
-    }
-  },
-});
-
-export const restartDeadWorlds = internalMutation({
-  handler: async (ctx) => {
-    const now = Date.now();
-
-    // Restart an engine if it hasn't run for 2x its action duration.
-    const engineTimeout = now - ENGINE_ACTION_DURATION * 2;
-    const worlds = await ctx.db.query('worldStatus').collect();
-    for (const worldStatus of worlds) {
-      if (worldStatus.status !== 'running') {
-        continue;
-      }
-      const engine = await ctx.db.get(worldStatus.engineId);
-      if (!engine) {
-        throw new Error(`Invalid engine ID: ${worldStatus.engineId}`);
-      }
-      if (engine.currentTime && engine.currentTime < engineTimeout) {
-        console.warn(`Restarting dead engine ${engine._id}...`);
-        await kickEngine(ctx, worldStatus.worldId);
-      }
-    }
-  },
-});
-
-export const completeJoining = internalMutation({
-  args: { worldId: v.id('worlds'), tokenIdentifier: v.string() },
-  handler: async (ctx, { worldId, tokenIdentifier }) => {
-    const world = await ctx.db.get(worldId);
-    if (!world) {
-      return;
-    }
-    const player = world.players.find((p) => p.human === tokenIdentifier);
-    if (!player) {
-      // Player hasn't been created yet, try again in a bit.
-      await ctx.scheduler.runAfter(1000, internal.world.completeJoining, {
-        worldId,
-        tokenIdentifier,
-      });
-      return;
-    }
-    // Ensure village state exists before attempting to join and pay fee
-    const existingVillageState = await ctx.db.query('villageState').unique();
-    if (!existingVillageState) {
-      await ctx.db.insert('villageState', {
-        treasury: 0,
-        btcPrice: 110000,
-        previousBtcPrice: 108000,
-        marketSentiment: 'neutral',
-        touristCount: 0,
-      });
-    }
-    await ctx.runMutation(api.village.joinAndPayFee, { playerId: player.id });
-  },
-});
-
-export const joinWorld = mutation({
-  args: {
-    worldId: v.id('worlds'),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new ConvexError('You must be logged in to join the world.');
-    }
-    const name = identity.name ?? DEFAULT_NAME;
-    const tokenIdentifier = identity.tokenIdentifier;
-
-    const world = await ctx.db.get(args.worldId);
-    if (!world) {
-      throw new ConvexError(`Invalid world ID: ${args.worldId}`);
-    }
-
-    // Check if the player already exists.
-    const existingPlayer = world.players.find((p) => p.human === tokenIdentifier);
-    if (existingPlayer) {
-      // If they exist, ensure they have a portfolio via the join completion flow.
-      await ctx.scheduler.runAfter(0, internal.world.completeJoining, {
-        worldId: args.worldId,
-        tokenIdentifier,
-      });
-      return;
-    }
-
-    const character = characters[Math.floor(Math.random() * characters.length)];
-    await insertInput(ctx, world._id, 'join', {
-      name,
-      characterName: character.name,
-      character: character.name,
-      description: `${DEFAULT_NAME} is a human player`,
-      tokenIdentifier: tokenIdentifier,
-    });
-    // Defer portfolio creation and fee logic to the completion task once the player document exists.
-    await ctx.scheduler.runAfter(0, internal.world.completeJoining, {
-      worldId: args.worldId,
-      tokenIdentifier,
-    });
-  },
-});
-
-export const leaveWorld = mutation({
-  args: {
-    worldId: v.id('worlds'),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error('not logged in');
-    }
-    const { tokenIdentifier } = identity;
-    const world = await ctx.db.get(args.worldId);
-    if (!world) {
-      throw new Error(`Invalid world ID: ${args.worldId}`);
-    }
-    const existingPlayer = world.players.find((p) => p.human === tokenIdentifier);
-    if (!existingPlayer) {
-      return;
-    }
-    await insertInput(ctx, world._id, 'leave', {
-      playerId: existingPlayer.id,
-    });
-  },
-});
-
-export const sendWorldInput = mutation({
-  args: {
-    engineId: v.id('engines'),
-    name: v.string(),
-    args: v.any(),
-  },
-  handler: async (ctx, args) => {
-    // const identity = await ctx.auth.getUserIdentity();
-    // if (!identity) {
-    //   throw new Error(`Not logged in`);
-    // }
-    return await engineInsertInput(ctx, args.engineId, args.name as any, args.args);
-  },
-});
-
+// Query for UI to get the world's current state
 export const worldState = query({
-  args: {
-    worldId: v.id('worlds'),
-  },
-  handler: async (ctx, args) => {
-    const world = await ctx.db.get(args.worldId);
-    if (!world) {
-      throw new Error(`Invalid world ID: ${args.worldId}`);
-    }
-    const worldStatus = await ctx.db
-      .query('worldStatus')
-      .withIndex('worldId', (q) => q.eq('worldId', world._id))
-      .unique();
-    if (!worldStatus) {
-      throw new Error(`Invalid world status ID: ${world._id}`);
-    }
-    const engine = await ctx.db.get(worldStatus.engineId);
-    if (!engine) {
-      throw new Error(`Invalid engine ID: ${worldStatus.engineId}`);
-    }
-    return { world, engine };
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: QueryCtx, args: { worldId: Id<'worlds'> }) => {
+    const worldDoc = await ctx.db.get(args.worldId);
+    if (!worldDoc) return null;
+    
+    // Return the world data in the format expected by the World class
+    return {
+      nextId: worldDoc.nextId,
+      conversations: worldDoc.conversations || {},
+      players: worldDoc.players || {},
+      agents: worldDoc.agents || {},
+      historicalLocations: worldDoc.historicalLocations,
+    };
   },
 });
 
+// Query for UI to get player and agent descriptions and map
 export const gameDescriptions = query({
-  args: {
-    worldId: v.id('worlds'),
-  },
-  handler: async (ctx, args) => {
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: QueryCtx, args: { worldId: Id<'worlds'> }) => {
     const playerDescriptions = await ctx.db
       .query('playerDescriptions')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
@@ -716,341 +538,194 @@ export const gameDescriptions = query({
     const worldMap = await ctx.db
       .query('maps')
       .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .first();
-    if (!worldMap) {
-      throw new Error(`No map for world: ${args.worldId}`);
-    }
-    return { worldMap, playerDescriptions, agentDescriptions };
-  },
-});
-
-export const previousConversation = query({
-  args: {
-    worldId: v.id('worlds'),
-    playerId,
-  },
-  handler: async (ctx, args) => {
-    // Walk the player's history in descending order, looking for a nonempty
-    // conversation.
-    const members = ctx.db
-      .query('participatedTogether')
-      .withIndex('playerHistory', (q) => q.eq('worldId', args.worldId).eq('player1', args.playerId))
-      .order('desc');
-
-    for await (const member of members) {
-      const conversation = await ctx.db
-        .query('archivedConversations')
-        .withIndex('worldId', (q) => q.eq('worldId', args.worldId).eq('id', member.conversationId))
-        .unique();
-      if (!conversation) {
-        throw new Error(`Invalid conversation ID: ${member.conversationId}`);
-      }
-      if (conversation.numMessages > 0) {
-        return conversation;
-      }
-    }
-    return null;
-  },
-});
-
-export const getAgentDescription = query({
-  args: { agentId: v.id('agents') },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query('agentDescriptions')
-      .withIndex('agentId', (q) => q.eq('agentId', args.agentId))
       .unique();
+    if (!worldMap) {
+      throw new Error(`No map found for world ${args.worldId}`);
+    }
+    return { playerDescriptions, agentDescriptions, worldMap };
   },
 });
+
 
 export const villageState = query({
-  args: {},
-  handler: async (ctx) => {
+  handler: async (ctx: QueryCtx) => {
     return await ctx.db.query('villageState').unique();
-  },
-});
-
-// Lightweight: get a player's current activity from the world by playerId
-export const getPlayerActivity = query({
-  args: { worldId: v.id('worlds'), playerId },
-  handler: async (ctx, { worldId, playerId }) => {
-    const world = await ctx.db.get(worldId);
-    if (!world) throw new Error(`Invalid world ${worldId}`);
-    const p = world.players.find((pl: any) => pl.id === playerId);
-    return p?.activity ?? null;
   },
 });
 
 export const getLatestMeetingNotes = query({
   args: { worldId: v.id('worlds') },
-  handler: async (ctx, args) => {
-    // Find any agent's latest meeting memory. They all get the same one.
-    const playerDescriptions = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
-      .collect();
-    if (!playerDescriptions.length) return null;
-    // Just grab the first player to check their memory for meeting notes.
-    const anyPlayerId = playerDescriptions[0].playerId;
-    const latestMeetingMemory = await ctx.db
-      .query('memories')
-      .withIndex('playerId_type', (q) => q.eq('playerId', anyPlayerId).eq('data.type', 'meeting'))
+  handler: async (ctx: QueryCtx, { worldId }: { worldId: Id<'worlds'> }) => {
+    // Get the actual meeting notes from villageState if available
+    const vState = await ctx.db.query('villageState').unique();
+    if (vState?.meeting) {
+      return {
+        _id: 'meeting-notes', // Dummy ID
+        _creationTime: vState.meeting.startTime,
+        description: vState.meeting.summary,
+      };
+    }
+    // If no active meeting, return the latest archived meeting notes or null
+    // The 'worldId' index on 'memories' is only for 'playerId_type'
+    // A direct query on 'worldId' for 'memories' would require a dedicated index
+    // Assuming a 'meeting' type memory could exist and using an existing index if possible,
+    // or adapting the query. For now, we'll return null if no active meeting notes.
+    return null;
+  },
+});
+
+export const getPlayerActivity = query({
+  args: { worldId: v.id('worlds'), playerId: playerId },
+  handler: async (ctx: QueryCtx, { worldId, playerId }: { worldId: Id<'worlds'>; playerId: GameId<'players'> }) => {
+    const world: Doc<'worlds'> | null = await ctx.db.get(worldId);
+    if (!world) return null;
+    const player = world.players.find(p => p.id === playerId);
+    return player?.activity ?? null;
+  },
+});
+
+export const previousConversation = query({
+  args: { worldId: v.id('worlds'), playerId: playerId },
+  handler: async (ctx: QueryCtx, args: { worldId: Id<'worlds'>; playerId: GameId<'players'> }) => {
+    const lastParticipated = await ctx.db
+      .query('participatedTogether')
+      .withIndex('playerHistory', (q) =>
+        q.eq('worldId', args.worldId).eq('player1', args.playerId),
+      )
       .order('desc')
       .first();
-    return latestMeetingMemory;
+    if (!lastParticipated) {
+      return null;
+    }
+    const conversation = await ctx.db
+      .query('archivedConversations')
+      .withIndex('worldId', (q) =>
+        q.eq('worldId', args.worldId).eq('id', lastParticipated.conversationId),
+      )
+      .first();
+    if (!conversation) {
+      throw new Error(`Conversation ${lastParticipated.conversationId} not found`);
+    }
+    return conversation;
   },
 });
 
-export const gatherAll = mutation({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    // Check cooldown for meetings
-    const villageState = await ctx.db.query('villageState').unique();
-    const now = Date.now();
-    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
-    
-    if (villageState?.lastMeetingTime && now - villageState.lastMeetingTime < cooldownMs) {
-      const remainingMinutes = Math.ceil((villageState.lastMeetingTime + cooldownMs - now) / (60 * 1000));
-      throw new Error(`Meeting is on cooldown. Please wait ${remainingMinutes} more minutes.`);
-    }
-    
-    // Update last meeting time
-    if (villageState) {
-      await ctx.db.patch(villageState._id, { lastMeetingTime: now });
-    }
-    const world = await ctx.db.get(worldId);
-    if (!world) throw new Error('World not found');
-    const playerDescriptions = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', (q) => q.eq('worldId', worldId))
-      .collect();
-    const bukele = playerDescriptions.find((d) => d.name === 'President Bukele');
-    if (!bukele) throw new Error('President Bukele not found to start a meeting.');
-
-    // Do NOT set villageState.meeting yet; setting it early can cause agents to switch
-    // to 'meeting' activity and stop moving. Bubble UI shows a client-side placeholder during gather.
-
-    // Force-move Bukele to podium and give him a small speed bump
-    await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: bukele.playerId, multiplier: 1.6 } as any);
-    await insertInput(ctx, worldId, 'forceMoveTo', {
-      playerId: bukele.playerId,
-      destination: { x: 45, y: 17 } as any,
-    } as any);
-
-    // Force-move all other non-human agents into the designated rectangle (spacing 2)
-    const minX = 42, maxX = 51, minY = 19, maxY = 24, spacing = 2;
-    const targets: { x: number; y: number }[] = [];
-    for (let y = minY; y <= maxY; y += spacing) {
-      for (let x = minX; x <= maxX; x += spacing) {
-        targets.push({ x, y });
-      }
-    }
-    const others = world.agents.filter((a: any) => a.playerId !== bukele.playerId);
-    let idx = 0;
-    for (const agent of others) {
-      const dest = targets[Math.min(idx, targets.length - 1)];
-      idx++;
-      await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: agent.playerId, multiplier: 1.6 } as any);
-      await insertInput(ctx, worldId, 'forceMoveTo', { playerId: agent.playerId, destination: dest as any } as any);
-    }
-
-    // Start the meeting after a fixed delay to allow everyone to arrive
-    await ctx.scheduler.runAfter(60_000, internal.world.conductMeeting, { worldId });
-    // Gentle nudges to help stragglers: re-issue move orders a couple times
-    await ctx.scheduler.runAfter(5_000, internal.world.nudgeMeetingMovers, { worldId, attempt: 0 });
-    await ctx.scheduler.runAfter(300_000, internal.world.dismissMeeting, { worldId });
-  },
-});
-
-export const conductMeeting = internalAction({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const { villageState, recentNews, agents, bukele } = await ctx.runQuery(
-      internal.world.getMeetingData,
-      { worldId },
-    );
-    if (!villageState || !agents.length || !bukele) return;
-
-    const agentPortfolios = await ctx.runQuery(api.economy.getAgentPortfolios, { worldId });
-    const totalAgentBtc = agentPortfolios.reduce((sum, p) => sum + p.btcBalance, 0);
-
-    const btcNow = villageState.btcPrice;
-    const btcPrev = villageState.previousBtcPrice;
-    const btcDelta = btcNow - btcPrev;
-    const btcPct = btcPrev ? (btcDelta / btcPrev) * 100 : 0;
-    const treasuryBtc = villageState.treasury;
-    const treasuryUsd = treasuryBtc * btcNow;
-    const touristCount = villageState.touristCount ?? 0;
-
-    const headlines = (recentNews ?? []).map((n: any) => n.headline);
-    const topHeadlines = headlines.slice(0, 3);
-
-    const newsText =
-      topHeadlines.length > 0
-        ? `Recent news: ${topHeadlines.map((h, i) => `#${i + 1} ${h}`).join(' | ')}`
-        : 'No recent news.';
-
-    const trendText = btcDelta === 0
-      ? 'BTC price is unchanged since last time.'
-      : `BTC is ${btcDelta > 0 ? 'up' : 'down'} ${Math.abs(btcPct).toFixed(2)}% since last time.`;
-
-    const summary =
-      `Town Meeting Notes — Treasury: ${treasuryBtc.toFixed(4)} BTC ($${treasuryUsd.toFixed(2)} USD). ` +
-      `Tourist visits: ${touristCount}. Combined agent holdings: ${totalAgentBtc.toFixed(4)} BTC. ` +
-      `${trendText} ${newsText}`;
-
-    const { embedding } = await fetchEmbedding(summary);
-
-    await ctx.runMutation(internal.world.recordMeeting, {
-      worldId,
-      summary,
-      speakerId: bukele.playerId,
-    });
-
-    for (const agent of agents) {
-      await ctx.runMutation(internal.agent.memory.insertMemory, {
-        playerId: agent.playerId,
-        agentId: agent.id,
-        description: summary,
-        embedding,
-        importance: 9,
-        lastAccess: Date.now(),
-        data: { type: 'meeting' },
-      });
-    }
-  },
-});
-
-export const recordMeeting = internalMutation({
+// Mutations for controlling the engine from the client.
+export const joinWorld = mutation({
   args: {
     worldId: v.id('worlds'),
-    summary: v.string(),
-    speakerId: playerId,
   },
-  handler: async (ctx, { worldId, summary, speakerId }) => {
-    // Retry up to 5 times to avoid generationNumber mismatches
-    for (let i = 0; i < 5; i++) {
-      try {
-        const villageState = await ctx.db.query('villageState').unique();
-        if (villageState) {
-          await ctx.db.patch(villageState._id, {
-            meeting: {
-              speakerId,
-              summary,
-              startTime: Date.now(),
-            },
-          });
-        }
-        return;
-      } catch (e: any) {
-        if (String(e?.message || '').includes('generationNumber') || String(e).includes('generationNumber')) {
-          await ctx.scheduler.runAfter(100, internal.world.recordMeeting, { worldId, summary, speakerId });
-          return;
-        }
-        throw e;
-      }
+  handler: async (ctx: MutationCtx, args: { worldId: Id<'worlds'> }): Promise<string> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('Not logged in');
     }
-  },
-});
-
-export const getMeetingData = internalQuery({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const world = await ctx.db.get(worldId);
+    // Correctly query the 'worlds' table and then check players within the document
+    const world: Doc<'worlds'> | null = await ctx.db.get(args.worldId);
     if (!world) {
-      return { villageState: null, recentNews: [], agents: [], bukele: null };
+      throw new Error(`World ${args.worldId} not found`);
     }
-    const playerDescriptions = await ctx.db
-      .query('playerDescriptions')
-      .withIndex('worldId', (q) => q.eq('worldId', worldId))
-      .collect();
-    const bukeleDesc = playerDescriptions.find((d) => d.name === 'President Bukele');
-    const allNews = await ctx.db.query('news').order('desc').collect();
-    const recentNews = allNews.slice(0, 5);
-    return {
-      villageState: await ctx.db.query('villageState').unique(),
-      recentNews,
-      agents: world?.agents ?? [],
-      bukele: bukeleDesc || null,
-    };
-  },
-});
-
-export const dismissMeeting = internalMutation({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const villageState = await ctx.db.query('villageState').unique();
-    if (villageState) {
-      await ctx.db.patch(villageState._id, { meeting: undefined });
+    const player = world.players.find((p) => p.human === identity.tokenIdentifier);
+    if (player) {
+      throw new ConvexError('Already in this world');
     }
-    // Reset any lingering meeting-related activities and movement
-    const world = await ctx.db.get(worldId);
-    if (world) {
-      for (const p of world.players as any[]) {
-        if (p.activity && (p.activity.description?.includes('Meeting') || p.activity.description?.includes('Listening') || p.activity.description?.includes('Leading'))) {
-          await insertInput(ctx, worldId, 'setActivity', { playerId: p.id, description: '', emoji: undefined, durationMs: 1 } as any);
-        }
-        await insertInput(ctx, worldId, 'forceMoveTo', { playerId: p.id, destination: null } as any);
-        await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: p.id, multiplier: null } as any);
+    // Submit an input to the game engine to add the player
+    return await ctx.runMutation(api.aiTown.main.sendInput, { 
+      worldId: args.worldId, 
+      name: 'join', 
+      args: {
+        name: identity.nickname ?? DEFAULT_NAME,
+        characterName: 'f1', // default character
+        description: 'A human tourist in X402 AI Town.',
+        character: 'f1', // default character
+        tokenIdentifier: identity.tokenIdentifier,
       }
-    }
+    });
   },
 });
 
-export const triggerParty = mutation({
+export const leaveWorld = mutation({
   args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    // Check cooldown
-    const villageState = await ctx.db.query('villageState').unique();
+  handler: async (ctx: MutationCtx, args: { worldId: Id<'worlds'> }): Promise<string> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError('Not logged in');
+    }
+    // Correctly query the 'worlds' table and then find the player within the document
+    const world: Doc<'worlds'> | null = await ctx.db.get(args.worldId);
+    if (!world) {
+      throw new Error(`World ${args.worldId} not found`);
+    }
+    const player = world.players.find((p) => p.human === identity.tokenIdentifier);
+    if (!player) {
+      throw new ConvexError('Not in this world');
+    }
+    // Submit an input to the game engine to remove the player
+    return await ctx.runMutation(api.aiTown.main.sendInput, {
+      worldId: args.worldId,
+      name: 'leave',
+      args: {
+        playerId: player.id,
+      }
+    });
+  },
+});
+
+export const sendWorldInput = mutation({
+  args: {
+    engineId: v.id('engines'),
+    name: v.string(),
+    args: v.any(),
+  },
+  handler: async (ctx: MutationCtx, args: { engineId: Id<'engines'>; name: string; args: any }) => {
+    return await engineInsertInput(ctx, args.engineId, args.name as any, args.args);
+  },
+});
+
+export const heartbeatWorld = mutation({
+  args: { worldId: v.id('worlds') },
+  handler: async (ctx: MutationCtx, args: { worldId: Id<'worlds'> }) => {
+    const worldStatus = await ctx.db
+      .query('worldStatus')
+      .withIndex('worldId', (q) => q.eq('worldId', args.worldId))
+      .unique();
+    if (!worldStatus) {
+      throw new Error(`World ${args.worldId} not found`);
+    }
+    await ctx.db.patch(worldStatus._id, { lastViewed: Date.now() });
+  },
+});
+
+// For crons to stop inactive worlds
+export const stopInactiveWorlds = internalMutation({
+  handler: async (ctx: MutationCtx) => {
     const now = Date.now();
-    const cooldownMs = (villageState?.cooldownMinutes || 60) * 60 * 1000; // Default to 60 minutes
-    
-    if (villageState?.lastPartyTime && now - villageState.lastPartyTime < cooldownMs) {
-      const remainingMinutes = Math.ceil((villageState.lastPartyTime + cooldownMs - now) / (60 * 1000));
-      throw new Error(`Party is on cooldown. Please wait ${remainingMinutes} more minutes.`);
+    const inactiveWorlds = await ctx.db
+      .query('worldStatus')
+      .filter((q) => q.eq(q.field('isDefault'), true))
+      .filter((q) => q.eq(q.field('status'), 'running'))
+      .filter((q) => q.lt(q.field('lastViewed'), now - IDLE_WORLD_TIMEOUT))
+      .collect();
+    for (const worldStatus of inactiveWorlds) {
+      console.log(`Stopping inactive world ${worldStatus.worldId}`);
+      await stopEngine(ctx, worldStatus.worldId);
+      await ctx.db.patch(worldStatus._id, { status: 'inactive' });
     }
-
-    // Update last party time and start party
-    if (villageState) {
-      await ctx.db.patch(villageState._id, { 
-        isPartyActive: true,
-        lastPartyTime: now 
-      });
-    }
-    await ctx.scheduler.runAfter(30 * 60 * 1000, internal.world.dismissParty, { worldId });
   },
 });
 
-export const stopParty = mutation({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    // In a real app, you'd want to add admin-level auth here.
-    const villageState = await ctx.db.query('villageState').unique();
-    if (villageState && !villageState.isPartyActive) {
-      console.log('No party to stop.');
-      return;
-    }
-    // Directly call the internal dismissParty logic.
-    await ctx.runMutation(internal.world.dismissParty, { worldId });
-  },
-});
-
-export const dismissParty = internalMutation({
-  args: { worldId: v.id('worlds') },
-  handler: async (ctx, { worldId }) => {
-    const villageState = await ctx.db.query('villageState').unique();
-    if (villageState && villageState.isPartyActive) {
-      await ctx.db.patch(villageState._id, { isPartyActive: false });
-      await ctx.scheduler.runAfter(0, internal.economy.transferAllToBukele, { worldId });
-      // Reset visuals and states for all players
-      const world = await ctx.db.get(worldId);
-      if (world) {
-        for (const p of world.players as any[]) {
-          await insertInput(ctx, worldId, 'setActivity', { playerId: p.id, description: '', emoji: undefined, durationMs: 1 } as any);
-          await insertInput(ctx, worldId, 'forceMoveTo', { playerId: p.id, destination: null } as any);
-          await insertInput(ctx, worldId, 'setSpeedMultiplier', { playerId: p.id, multiplier: null } as any);
-        }
-      }
+// For crons to restart dead worlds
+export const restartDeadWorlds = internalMutation({
+  handler: async (ctx: MutationCtx) => {
+    const worldStatus = await ctx.db
+      .query('worldStatus')
+      .filter((q) => q.eq(q.field('isDefault'), true))
+      .filter((q) => q.eq(q.field('status'), 'inactive'))
+      .first();
+    if (worldStatus) {
+      console.log(`Restarting inactive world ${worldStatus.worldId}`);
+      await ctx.db.patch(worldStatus._id, { status: 'running' });
+      await startEngine(ctx, worldStatus.worldId);
     }
   },
 });

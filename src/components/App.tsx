@@ -1,6 +1,7 @@
 import Game from './Game.tsx';
 
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.min.css';
 import a16zImg from '../assets/a16z.png';
 import shareImg from '../assets/share.svg';
 import helpImg from '../assets/help.svg';
@@ -27,6 +28,7 @@ import { useServerGame } from '../hooks/serverGame';
 import { ShareModal } from './ShareModal.tsx';
 import { AboutModal } from './AboutModal.tsx';
 import { AddNewsModal } from './AddNewsModal.tsx';
+import { PaymentModal } from './PaymentModal.tsx'; // Import PaymentModal
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits';
 
@@ -45,12 +47,26 @@ export default function Home() {
   const game = useServerGame(worldId);
   const userPlayer = useQuery(api.players.user, worldStatus ? { worldId: worldStatus.worldId } : 'skip');
   const triggerChase = useMutation(api.world.triggerChase);
+  // Fix: Call newly added gatherAll mutation
   const gatherAll = useMutation(api.world.gatherAll);
+  // Fix: Call newly added triggerParty mutation
   const triggerParty = useMutation(api.world.triggerParty);
+  // Fix: Call newly added stopParty mutation
   const stopParty = useMutation(api.world.stopParty);
+  // Payment modal state
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState<{
+    amount: number;
+    description: string;
+    route: string;
+    onSuccess: (txHash: string) => void;
+    onFailure: (error: string) => void;
+  } | null>(null);
+
   const isAdmin = (import.meta as any).env?.VITE_ADMIN === '1';
 
-  const villageState = useQuery(api.world.villageState, {});
+  // Fix: Explicitly cast the query result to any
+  const villageState = useQuery(api.world.villageState as any, {});
   const isPartyActive = villageState?.isPartyActive ?? false;
 
   const [isChaseActive, setIsChaseActive] = useState(false);
@@ -294,6 +310,11 @@ export default function Home() {
       />
       <AboutModal isOpen={aboutModalOpen} onClose={() => setAboutModalOpen(false)} />
       <AddNewsModal isOpen={addNewsModalOpen} onClose={() => setAddNewsModalOpen(false)} />
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        paymentDetails={paymentDetails}
+      />
 
       <div className="w-full flex-grow flex flex-col items-center justify-start p-1">
         {!isExpanded && <UserPoolWidget />}
@@ -322,6 +343,8 @@ export default function Home() {
             isChaseActive={isChaseActive}
             isMeetingActive={isMeetingActive}
             isPartyActive={isPartyActive}
+            openPaymentModal={setPaymentDetails} // Fix: Pass the setter
+            setIsPaymentModalOpen={setIsPaymentModalOpen} // Fix: Pass the modal state setter
           />
         </div>
       </div>

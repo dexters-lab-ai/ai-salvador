@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Descriptions, characters as CharacterSheets } from '../../data/characters';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 
 type Props = {
   durationMs?: number;
@@ -46,7 +48,6 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
   const [audioError, setAudioError] = useState<Error | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fadeTimer = useRef<number | null>(null);
-  const cleanupRef = useRef<() => void>();
   const audioInitialized = useRef(false);
   const handleCanPlayRef = useRef<() => void>();
   const handleAudioErrorRef = useRef<(error: Error) => void>();
@@ -81,7 +82,6 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
       endTimeout: null as NodeJS.Timeout | null,
       fadeOutTimeout: null as NodeJS.Timeout | null,
       isMounted: true,
-      effectRun: false
     };
     
     // Show first character immediately
@@ -154,7 +154,7 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
     // Initialize audio with longer duration to match character display
     if (!audioInitialized.current && audioRef.current === null) {
       const basePath = ((import.meta as any).env.BASE_URL || '').replace(/\/+$/, '');
-      const audioSrc = `${basePath}/assets/narcos.wav`;
+      const audioSrc = `${basePath}/assets/narcos.wav`; // Use .wav for broader browser compatibility
       const audio = new Audio(audioSrc);
       
       // Store handlers in refs for cleanup
@@ -272,7 +272,7 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
       clearTimeout(fadeOutAtRef.current);
       fadeOutAtRef.current = null;
     }
-
+    
     // Cleanup function
     const cleanup = () => {
       if (!state.isMounted) return;

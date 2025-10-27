@@ -11,10 +11,13 @@ import { mutation } from './_generated/server';
 import { v } from 'convex/values';
 import { playerId } from './aiTown/ids';
 
-const INITIAL_TOURIST_BTC = 0.1;
-const MIN_ENTRY_FEE = 0.001;
-const MAX_ENTRY_FEE = 0.005;
+// The INITIAL_TOURIST_BTC, MIN_ENTRY_FEE, MAX_ENTRY_FEE are no longer used here
+// as the entry fee is now handled by the x402 payment protocol.
 
+// This mutation is now deprecated and should no longer be called directly.
+// The `joinWorld` logic now schedules a call to the x402 payment flow
+// which ultimately updates the user's `isJoined` status and logs the payment.
+/*
 export const joinAndPayFee = mutation({
   args: { playerId: v.string() },
   handler: async (ctx, args) => {
@@ -66,6 +69,7 @@ export const joinAndPayFee = mutation({
     });
   },
 });
+*/
 
 export const updateBtcPrice = internalMutation({
   handler: async (ctx) => {

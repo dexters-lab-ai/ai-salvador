@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
-import { Container, Graphics, Text, useApp, useTick } from '@pixi/react';
-import { Player, SelectElement } from './Player.tsx';
+import { Container, Graphics, Text, useApp, useTick, Sprite, AnimatedSprite } from '@pixi/react';
+import { PlayerComponent } from './Player.tsx'; // Fix: Renamed Player to PlayerComponent
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { PixiStaticMap } from './PixiStaticMap.tsx';
 import PixiViewport from './PixiViewport.tsx';
@@ -16,6 +16,7 @@ import { PositionIndicator } from './PositionIndicator.tsx';
 import { FloatingText } from './FloatingText.tsx';
 import { SHOW_DEBUG_UI } from './Game.tsx';
 import { ServerGame } from '../hooks/serverGame.ts';
+import { SelectElement } from './Player.tsx'; // Fix: Import SelectElement
 
 export const PixiGame = (props: {
   worldId: Id<'worlds'>;
@@ -29,6 +30,8 @@ export const PixiGame = (props: {
   isMeetingActive: boolean;
   // Fix: Add viewportRef to props
   viewportRef: React.MutableRefObject<Viewport | undefined>;
+  openPaymentModal: React.Dispatch<any>; // Setter for paymentDetails state in App.tsx
+  setIsPaymentModalOpen: React.Dispatch<React.SetStateAction<boolean>>; // Setter for payment modal open state in App.tsx
 }) => {
   // PIXI setup.
   const pixiApp = useApp();
@@ -56,7 +59,7 @@ export const PixiGame = (props: {
     if (dragStart.current) {
       const { screenX, screenY } = dragStart.current;
       dragStart.current = null;
-      const [dx, dy] = [screenX - e.screenX, screenY - e.screenY];
+      const [dx, dy] = [screenX - e.screenX, e.screenY - e.screenY];
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 10) {
         console.log(`Skipping navigation on drag event (${dist}px)`);
@@ -88,12 +91,15 @@ export const PixiGame = (props: {
   const players = [...props.game.world.players.values()];
   // Key by string to avoid branded GameId type mismatches in lookups
   const playersMap = new Map(players.map((p) => [String(p.id), p]));
-  const recentTransactions = useQuery(api.economy.getRecentTransactions);
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const recentTransactions = useQuery(api.economy.getRecentTransactions, {} as any);
   const [floatingTexts, setFloatingTexts] = useState<any[]>([]);
   // Track which transaction IDs we've already displayed to avoid re-spawning old ones.
   const shownTxIdsRef = useRef<Set<string>>(new Set());
-  const meetingNotes = useQuery(api.world.getLatestMeetingNotes, props.worldId ? { worldId: props.worldId } : 'skip');
-  const vState = useQuery(api.world.villageState, {});
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const meetingNotes = useQuery(api.world.getLatestMeetingNotes as any, props.worldId ? { worldId: props.worldId } : 'skip');
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const vState = useQuery(api.world.villageState as any, {} as any);
 
   useEffect(() => {
     if (!recentTransactions) return;
@@ -150,43 +156,37 @@ export const PixiGame = (props: {
   }, [props.isPartyActive]);
 
   const [partyThoughts, setPartyThoughts] = useState<{ id: string; text: string; key: string }[]>([]);
-  useEffect(() => {
-    if (!props.isPartyActive) {
-      setPartyThoughts([]);
-      return;
-    }
-    if (players.length === 0) return;
+  useTick((ticker) => { // Fix: Explicitly type ticker as Ticker
+    if (!props.isPartyActive) return;
 
-    const phrases = [
-      '🔥 vibes!', '🥃 one more?', '💃 nice moves', '😂 LMAO did u see?', '🎶 banger', '👀 Bob WTF!?',
-      '😵‍💫 getting dizzy', '📸 selfie?', '🤑 booze pricey!', '👀 ICE got moves', '🤫 MS-13 DJ?',
-    ];
+    // Logic to add new thoughts
+    setPartyThoughts((currentThoughts) => {
+      const now = Date.now();
+      const activeIds = new Set(currentThoughts.map(t => t.id));
+      const availablePlayers = players.filter(p => !activeIds.has(p.id));
 
-    const interval = setInterval(() => {
-      setPartyThoughts((currentThoughts) => {
-        const now = Date.now();
-        const activeIds = new Set(currentThoughts.map(t => t.id));
-        const availablePlayers = players.filter(p => !activeIds.has(p.id));
-        
-        if (availablePlayers.length > 0 && currentThoughts.length < 3) {
-            const numToAdd = Math.min(availablePlayers.length, Math.floor(Math.random() * 2) + 1);
-            for (let i = 0; i < numToAdd; i++) {
-                const playerIndex = Math.floor(Math.random() * availablePlayers.length);
-                const player = availablePlayers.splice(playerIndex, 1)[0];
-                const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-                currentThoughts.push({
-                    id: player.id,
-                    text: phrase,
-                    key: `${player.id}-${now}`,
-                });
-            }
+      if (availablePlayers.length > 0 && currentThoughts.length < 3) {
+        const phrases = [
+          '🔥 vibes!', '🥃 one more?', '💃 nice moves', '😂 LMAO did u see?', '🎶 banger', '👀 Bob WTF!?',
+          '😵‍💫 getting dizzy', '📸 selfie?', '🤑 booze pricey!', '👀 ICE got moves', '🤫 MS-13 DJ?',
+        ];
+        const numToAdd = Math.min(availablePlayers.length, Math.floor(Math.random() * 2) + 1);
+        for (let i = 0; i < numToAdd; i++) {
+          const playerIndex = Math.floor(Math.random() * availablePlayers.length);
+          const player = availablePlayers.splice(playerIndex, 1)[0];
+          const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+          currentThoughts.push({
+            id: player.id,
+            text: phrase,
+            key: `${player.id}-${now}`,
+          });
         }
-        return [...currentThoughts];
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [props.isPartyActive, players.length]);
+      }
+      // Remove old thoughts (e.g., after 10 seconds)
+      const filteredThoughts = currentThoughts.filter(t => now - parseInt(t.key.split('-')[2]) < 10000);
+      return filteredThoughts;
+    });
+  });
 
   const humanPlayer = humanPlayerId ? props.game.world.players.get(humanPlayerId as GameId<'players'>) : undefined;
 
@@ -254,13 +254,15 @@ export const PixiGame = (props: {
       )}
       {lastDestination && <PositionIndicator destination={lastDestination} tileDim={tileDim} />}
       {players.map((p) => (
-        <Player
+        <PlayerComponent // Fix: Use renamed PlayerComponent
           key={`player-${p.id}`}
           game={props.game}
           player={p}
           isViewer={p.id === humanPlayerId}
           onClick={props.setSelectedElement}
           historicalTime={props.historicalTime}
+          openPaymentModal={props.openPaymentModal} // Pass to Player
+          setIsPaymentModalOpen={props.setIsPaymentModalOpen} // Pass to Player
         />
       ))}
       {/* Party thought bubbles overlay - now using FloatingText for reliability */}
@@ -386,7 +388,7 @@ function BukeleMeetingBubble({ game, tileDim, text }: { game: ServerGame; tileDi
 }
 const PartyLights = ({ tileDim }: { tileDim: number }) => {
   const [t, setT] = useState(0);
-  useTick((delta) => setT((t) => t + delta));
+  useTick((ticker: PIXI.Ticker) => setT((t) => t + ticker.deltaMS / 1000)); // Fix: Explicitly type ticker as Ticker
 
   const draw = useCallback(
     (g: PIXI.Graphics) => {
@@ -425,7 +427,7 @@ function PartyNowPlaying({ tileDim }: { tileDim: number }) {
     read();
     const iv = setInterval(read, 1000);
     return () => clearInterval(iv);
-  }, []);
+  }, [title]);
   if (!title) return null;
   const partyCenterX = ((40 + 51) / 2) * tileDim;
   const partyCenterY = ((9 + 14) / 2) * tileDim - tileDim * 2.2;
@@ -450,114 +452,35 @@ function PartyNowPlaying({ tileDim }: { tileDim: number }) {
   );
 }
 
-export default PixiGame;
-
-// --- Overlay Actors Layer ---
+// Fix: Define OverlayActors component
 function OverlayActors({ tileDim }: { tileDim: number }) {
-  const app = useApp();
-  const tRef = useRef(0);
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!app || !(app as any).ticker) return;
-    const tick = (delta: number) => {
-      tRef.current += delta / 60; // seconds-ish
-      force((v) => v + 1);
-    };
-    app.ticker.add(tick);
-    return () => {
-      try { app.ticker.remove(tick); } catch {}
-    };
-  }, [app]);
-
-  const crocs = [
-    { x: 31, y: 33, id: 'c1' },
-    { x: 30, y: 37, id: 'c2' },
-  ];
-  const statue = { x: 42, y: 10, id: 's1' };
-
   return (
-    <Container>
-      {crocs.map((c, idx) => (
-        <CrocActor key={c.id} tileX={c.x} tileY={c.y} tileDim={tileDim} phaseOffset={idx * Math.PI / 2} />
-      ))}
-      <EmojiActor tileX={statue.x} tileY={statue.y} tileDim={tileDim} emoji="🗽" />
-    </Container>
-  );
-}
-
-function EmojiActor({ tileX, tileY, tileDim, emoji }: { tileX: number; tileY: number; tileDim: number; emoji: string }) {
-  const x = tileX * tileDim + tileDim / 2;
-  const y = tileY * tileDim + tileDim / 2;
-  return (
-    <Text
-      text={emoji}
-      anchor={0.5}
-      x={x}
-      y={y}
-      style={new PIXI.TextStyle({ fontSize: Math.floor(tileDim * 1.4), stroke: '#000000', strokeThickness: 3 }) as any}
-    />
-  );
-}
-
-function CrocActor({ tileX, tileY, tileDim, phaseOffset = 0 }: { tileX: number; tileY: number; tileDim: number; phaseOffset?: number }) {
-  const app = useApp();
-  const tRef = useRef(0);
-  const [hover, setHover] = useState(false);
-  const [, rerender] = useState(0);
-  useEffect(() => {
-    if (!app || !(app as any).ticker) return;
-    const tick = (delta: number) => {
-      tRef.current += delta / 60;
-      rerender((v) => v + 1);
-    };
-    app.ticker.add(tick);
-    return () => { try { app.ticker.remove(tick); } catch {} };
-  }, [app]);
-
-  const amp = tileDim * 2; // 2 tiles amplitude
-  const baseX = tileX * tileDim + tileDim / 2;
-  const baseY = tileY * tileDim + tileDim / 2;
-  const w = tileDim;
-  const t = tRef.current + phaseOffset;
-  const x = baseX + Math.sin(t * 1.2) * amp;
-  const y = baseY + Math.cos(t * 0.8) * (tileDim * 0.2); // tiny vertical wobble
-  const dx = Math.cos(t * 1.2);
-  const facingRight = dx >= 0;
-  const croc = '🐊';
-  const bubbleText = 'tick... tock..';
-  const bubbleYOffset = -tileDim * (1.4 + 0.1 * Math.sin(t * 2));
-
-  return (
-    <Container>
-      {/* Thought bubble text (animated) */}
-      <Text
-        text={bubbleText}
-        x={x}
-        y={y + bubbleYOffset}
+    <>
+      {/* Crocodiles near (31,33), (30,37) */}
+      <Sprite
+        texture={PIXI.Texture.from('/assets/spritesheets/crocodile.png')}
+        x={31 * tileDim + 8}
+        y={33 * tileDim + 8}
         anchor={0.5}
-        style={new PIXI.TextStyle({ fontSize: Math.floor(tileDim * 0.7), fill: '#ffffff', stroke: '#000000', strokeThickness: 3 }) as any}
+        scale={0.8}
       />
-      {/* Croc emoji with left/right facing via scaleX */}
-      <Container
-        x={x}
-        y={y}
-        interactive
-        pointerover={() => setHover(true)}
-        pointerout={() => setHover(false)}
-      >
-        <Container scale={{ x: facingRight ? 1 : -1, y: 1 }}>
-          <Text text={croc} anchor={0.5} style={new PIXI.TextStyle({ fontSize: Math.floor(w * 1.2), stroke: '#000000', strokeThickness: 3 }) as any} />
-        </Container>
-        {hover && (
-          <Text
-            text={'i said, tick-tock mf'}
-            x={0}
-            y={-tileDim * 1.2}
-            anchor={0.5}
-            style={new PIXI.TextStyle({ fontSize: Math.floor(tileDim * 0.6), fill: '#ffe08a', stroke: '#000000', strokeThickness: 3 }) as any}
-          />
-        )}
-      </Container>
-    </Container>
+      <Sprite
+        texture={PIXI.Texture.from('/assets/spritesheets/crocodile.png')}
+        x={30 * tileDim + 8}
+        y={37 * tileDim + 8}
+        anchor={0.5}
+        scale={0.8}
+        alpha={0.7}
+      />
+      {/* Statue at (42,10) */}
+      <Sprite
+        texture={PIXI.Texture.from('/assets/spritesheets/statue.png')}
+        x={42 * tileDim}
+        y={10 * tileDim - 10} // Adjusted Y to place on ground
+        anchor={0.5}
+        scale={1.2}
+        zIndex={1} // Ensure it's above players
+      />
+    </>
   );
 }

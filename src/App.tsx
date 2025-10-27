@@ -3,22 +3,15 @@ import Game from './components/Game.tsx';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.min.css';
 import a16zImg from '../assets/a16z.png';
-import convexImg from '../assets/convex.svg';
 import shareImg from '../assets/share.svg';
 import helpImg from '../assets/help.svg';
 import infoImg from '../assets/info.svg';
-// import { UserButton } from '@clerk/clerk-react';
-// import { Authenticated, Unauthenticated } from 'convex/react';
-// import LoginButton from './components/buttons/LoginButton.tsx';
 import { useState, useEffect, useRef } from 'react';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
-import type { CSSProperties } from 'react';
 import MusicButton from './components/buttons/MusicButton.tsx';
 import LandingCredits from './components/LandingCredits.tsx';
 import Button from './components/buttons/Button.tsx';
-import InteractButton from './components/buttons/InteractButton.tsx';
-import FreezeButton from './components/FreezeButton.tsx';
 import Treasury from './components/Treasury.tsx';
 import UserPoolWidget from './components/UserPoolWidget.tsx';
 import { HustleModal } from './components/HustleModal.tsx';
@@ -31,6 +24,8 @@ import { useServerGame } from './hooks/serverGame.ts';
 import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
+import { PaymentModal } from './components/PaymentModal.tsx'; // Import new PaymentModal
+import x402Button from '../public/assets/x402-button.svg'; // Import x402 button asset
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits' | 'comingSoon';
 
@@ -102,16 +97,76 @@ function Home() {
   const game = useServerGame(worldId);
   const userPlayer = useQuery(api.players.user, worldStatus ? { worldId: worldStatus.worldId } : 'skip');
   const triggerChase = useMutation(api.world.triggerChase);
+  // Fix: Call newly added gatherAll mutation
   const gatherAll = useMutation(api.world.gatherAll);
+  // Fix: Call newly added triggerParty mutation
   const triggerParty = useMutation(api.world.triggerParty);
+  // Fix: Call newly added stopParty mutation
   const stopParty = useMutation(api.world.stopParty);
+
+  // Payment modal state
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentDetails, setPaymentDetails] = useState<{
+    amount: number;
+    description: string;
+    route: string;
+    onSuccess: (txHash: string) => void;
+    onFailure: (error: string) => void;
+  } | null>(null);
+
+  const handleJoinPaymentSuccess = async (txHash: string) => {
+    if (!worldId || !paymentDetails) return;
+    try {
+      // Fix: Call `api.x402.handleJoinPayment` directly
+      await api.x402.handleJoinPayment({
+        payerWallet: 'user-solana-wallet-placeholder', // This should come from client-side or facilitator
+        amount: paymentDetails.amount,
+        txHash: txHash,
+      });
+      setGameStarted(true);
+      toast.success('🎉 Welcome to X402 AI Town!', {
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    } catch (error: any) {
+      toast.error(`Error processing join: ${error.message}`, {
+        position: 'bottom-right',
+        autoClose: 5000,
+      });
+    } finally {
+      setIsPaymentModalOpen(false);
+      setPaymentDetails(null);
+    }
+  };
+
+  const handlePaymentFailure = (error: string) => {
+    toast.error(`Payment failed: ${error}`, {
+      position: 'bottom-right',
+      autoClose: 5000,
+    });
+    setIsPaymentModalOpen(false);
+    setPaymentDetails(null);
+  };
+
+  const openJoinPaymentModal = () => {
+    if (!worldId) return;
+    setPaymentDetails({
+      amount: 0.1, // 0.1 USDC to join
+      description: 'Payment to join X402 AI Town',
+      route: '/join',
+      onSuccess: handleJoinPaymentSuccess,
+      onFailure: handlePaymentFailure,
+    });
+    setIsPaymentModalOpen(true);
+  };
 
   // Wrap mutations with toast notifications
   const handleChase = async () => {
     if (!worldStatus?.worldId) return;
     try {
       await triggerChase({ worldId: worldStatus.worldId });
-      toast.success('🚨 Chase initiated!', {
+      // Fix: Changed icon from string to React Node
+      toast.success(<span>🚨 Chase initiated!</span>, {
         icon: '🏃',
         position: 'bottom-right',
         autoClose: 3000,
@@ -128,7 +183,8 @@ function Home() {
     if (!worldStatus?.worldId) return;
     try {
       await gatherAll({ worldId: worldStatus.worldId });
-      toast.success('📢 Town meeting called!', {
+      // Fix: Changed icon from string to React Node
+      toast.success(<span>📢 Town meeting called!</span>, {
         icon: '🗣️',
         position: 'bottom-right',
         autoClose: 3000,
@@ -159,7 +215,8 @@ function Home() {
     } else {
       try {
         await triggerParty({ worldId: worldStatus.worldId });
-        toast.success('🎉 Party started!', {
+        // Fix: Changed icon from string to React Node
+        toast.success(<span>🎉 Party started!</span>, {
           icon: '🎊',
           position: 'bottom-right',
           autoClose: 3000,
@@ -174,7 +231,8 @@ function Home() {
   };
   const isAdmin = (import.meta as any).env?.VITE_ADMIN === '1';
 
-  const villageState = useQuery(api.world.villageState, {});
+  // Fix: Explicitly cast the query result to any
+  const villageState = useQuery(api.world.villageState as any, {});
   const isPartyActive = villageState?.isPartyActive ?? false;
 
   const [isChaseActive, setIsChaseActive] = useState(false);
@@ -276,7 +334,7 @@ function Home() {
               ))}
             </h1>
             <h2 className="mt-1 text-5xl xs:text-6xl sm:text-8xl lg:text-9xl font-bold font-display leading-none tracking-wider game-title landing-brighten title-stagger">
-              {Array.from('AI SALVADOR').map((ch, i) => (
+              {Array.from('X402 AI TOWN').map((ch, i) => (
                 <span key={i} style={{ animationDelay: `${300 + i * 60}ms` }}>{ch === ' ' ? '\u00A0' : ch}</span>
               ))}
             </h2>
@@ -304,10 +362,10 @@ function Home() {
           ) : (
             <>
               <p className="mt-5 sm:mt-6 mb-12 sm:mb-14 text-lg sm:text-xl md:text-2xl max-w-md md:max-w-2xl lg:max-w-3xl mx-auto leading-snug text-white/95 shadow-solid scale-hover">
-                Step into a bustling virtual town where the economy runs on BTC. As a tourist, you'll get some free BTC to start your adventure. Spend it, watch the town's treasury grow, and see how the AI citizens adapt to a crypto world. Ready to dive in?
+                Step into a bustling virtual town where the economy runs on Solana. To get started, make a small 0.1 USDC payment via the x402 protocol. Then, interact with AI agents, influence the town's story, and see how they adapt to a crypto world. Ready to dive in?
               </p>
-              <Button onClick={() => setGameStarted(true)} className="mt-8 sm:mt-10 text-2xl sm:text-3xl px-6 sm:px-10 btn-pulse scale-hover">
-                Start Game
+              <Button onClick={openJoinPaymentModal} className="mt-8 sm:mt-10 text-2xl sm:text-3xl px-6 sm:px-10 btn-pulse scale-hover">
+                Join X402 AI Town
               </Button>
             </>
           )}
@@ -318,6 +376,11 @@ function Home() {
 
   return (
     <main className="relative flex h-screen flex-col items-center justify-between font-body game-background">
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        paymentDetails={paymentDetails}
+      />
       <ReactModal
         isOpen={helpModalOpen}
         onRequestClose={() => setHelpModalOpen(false)}
@@ -329,7 +392,7 @@ function Home() {
           <div
             className="relative w-full rounded-2xl border border-white/10 bg-[#0f172a] text-slate-100 shadow-[0_20px_45px_rgba(15,23,42,0.55)] p-4 sm:p-6"
           >
-            <h1 className="text-center text-2xl sm:text-4xl lg:text-5xl font-bold font-display game-title mb-3 sm:mb-4">How to Play</h1>
+            <h1 className="text-center text-2xl sm:text-4xl lg:text-5xl font-bold font-display game-title mb-3 sm:mb-4">How to Play X402 AI Town</h1>
 
             <div className="mt-4 flex flex-nowrap gap-1 sm:gap-2 border-b border-white/15 pb-3 overflow-x-auto no-scrollbar w-full">
               {[
@@ -357,8 +420,8 @@ function Home() {
             <div className="mt-4 overflow-y-auto max-h-[60vh] sm:max-h-[70vh] space-y-4 pr-1 sm:pr-2">
               {helpTab === 'intro' && (
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
-                  <h2 className="text-xl sm:text-2xl font-semibold">Welcome to AI Salvador!</h2>
-                  <p className="mt-2 text-sm sm:text-base text-slate-200">This is a virtual town where AI characters live, chat, and socialize. You can explore as a spectator or jump in as a tourist to interact with the AI agents and influence the town's story.</p>
+                  <h2 className="text-xl sm:text-2xl font-semibold">Welcome to X402 AI Town!</h2>
+                  <p className="mt-2 text-sm sm:text-base text-slate-200">This is a virtual town where AI characters live, chat, socialize, and participate in a payment-driven economy. To join, you'll make a small 0.1 USDC payment via the x402 protocol on Solana mainnet. Then you can explore as a spectator or jump in as a tourist to interact with the AI agents and influence the town's story.</p>
                 </section>
               )}
               {helpTab === 'nav' && (
@@ -375,7 +438,7 @@ function Home() {
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-xl sm:text-2xl font-semibold">Being a Tourist</h2>
                   <ul className="list-disc pl-5 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
-                    <li>Click the <b>Interact</b> button to join the game as a human tourist.</li>
+                    <li>To join, you must first make a <b>0.1 USDC payment</b> via the x402 protocol. This ensures a vibrant economy and helps fund rewards.</li>
                     <li>You'll be assigned a random character and given some free BTC to start your adventure.</li>
                     <li><b>Move:</b> Click any open spot on the map to see a path preview, then click again to confirm and walk there.</li>
                     <li>You can change your destination at any time, even while walking.</li>
@@ -386,7 +449,7 @@ function Home() {
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-3xl font-semibold">Interacting with Agents</h2>
                   <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
-                    <li>To chat, click on an agent and select <b>"Start conversation"</b>. They will walk over to you.</li>
+                    <li>To chat, click on an agent and select <b>"Start conversation"</b>. You will be prompted for a <b>0.1 USDC payment</b> per interaction via the x402 protocol.</li>
                     <li>If an agent is busy, they'll accept your invitation once they are free. They always prioritize talking to humans!</li>
                     <li>Once in a conversation, type your message and press Enter. You can also use the microphone icon for voice-to-text input.</li>
                   </ul>
@@ -395,12 +458,14 @@ function Home() {
               {helpTab === 'economy' && (
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-3xl font-semibold">The Town Economy</h2>
-                  <p className="mt-2 text-slate-200">AI Salvador's economy is dynamic and driven by BTC:</p>
+                  <p className="mt-2 text-slate-200">X402 AI Town's economy is dynamic and driven by Solana-based USDC:</p>
                   <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
-                    <li><b>Town Treasury:</b> The treasury, held by President Bukele, grows from tourist taxes and other activities. Its value fluctuates with the simulated BTC price.</li>
-                    <li><b>Tourist Tax:</b> When you join as a tourist, a small, random fee is paid to the town treasury.</li>
-                    <li><b>Agent Earnings:</b> Agents earn BTC by chatting with tourists. Some agents have... other ways of making BTC.</li>
-                    <li><b>MS-13 Protection Fee:</b> This agent may extort a 10% "protection fee" from other AI agents during conversations.</li>
+                    <li><b>x402 Payments:</b> All join and interaction fees (0.1 USDC each) are collected via the x402 protocol to the server's wallet.</li>
+                    <li><b>Reward Distribution:</b> A portion of collected x402 payments is randomly distributed as USDC fractions to active joined users (humans or agents) based on their interaction durations. This creates a circular economy where engaging with the town can earn you rewards.</li>
+                    <li><b>Town Treasury:</b> The treasury, held by President Bukele, grows from collected payments and other activities. Its value fluctuates with the simulated BTC price.</li>
+                    <li><b>Agent Portfolios:</b> Every agent maintains a BTC balance, earning from tourists and engaging in unique economic behaviors like charging "protection fees."</li>
+                    <li><b>MS-13 Protection Fee:</b> This agent may extort a 10% "protection fee" from other AI agents during chats.</li>
+                    <li><b>Reward Transparency:</b> All rewards, including receiver wallets and amounts, are publicly tracked and viewable.</li>
                   </ul>
                 </section>
               )}
@@ -408,31 +473,33 @@ function Home() {
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-3xl font-semibold">World Events</h2>
                   <p className="mt-2 text-slate-200">The town is alive with emergent events:</p>
-                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
                     <li><b>Cops & Robbers:</b> When ICE (the cop) and MS-13 (the robber) chat, a chase might begin! If ICE asks for ID, MS-13 will flee to the border tunnel with ICE in hot pursuit. The chase resolves with a transfer of all of MS-13's BTC to ICE.</li>
-                    <li><b>Town Meetings:</b> President Bukele can call a town meeting, gathering all agents to discuss the town's economic status. You'll see his speech summary appear above his head.</li>
-                    <li><b>Parties:</b> An admin can trigger a town-wide party! All agents will gather to dance, the music changes, and special effects turn on. At the end, all agents transfer their earnings to the president.</li>
+                    <li><b>Town Meetings:</b> President Bukele can call all agents to a town meeting, gathering all agents to discuss the town's economic status. You'll see his speech summary appear above his head.</li>
+                    <li><b>Parties:</b> An admin can trigger a town-wide party! All agents will gather to dance, accompanied by special music and visual effects. At the end, all agents transfer their earnings to the president.</li>
                   </ul>
                 </section>
               )}
               {helpTab === 'tips' && (
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-3xl font-semibold">Pro Tips</h2>
-                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
                     <li>Keep your chat replies short and to the point for the best AI responses.</li>
                     <li>If an agent is busy, they won’t accept new invites. Check their profile to see what they're up to.</li>
                     <li>Watch the floating text above agents to see BTC transactions happen in real-time!</li>
                     <li>Check the news articles in an agent's profile when they're "reading the news" to see what's influencing their mood.</li>
+                    <li>Check the "Reward History" in any player's profile to see who earned USDC from their interactions.</li>
                   </ul>
                 </section>
               )}
               {helpTab === 'limits' && (
                 <section className="rounded-2xl bg-[#111827] border border-white/10 px-4 py-4 sm:px-6 sm:py-5 shadow-[0_16px_35px_rgba(15,23,42,0.35)]">
                   <h2 className="text-3xl font-semibold">Rules & Limits</h2>
-                  <ul className="list-disc pl-6 mt-2 space-y-1 text-slate-200">
+                  <ul className="list-disc pl-6 mt-2 space-y-1 text-sm sm:text-base text-slate-200">
                     <li>A maximum of {MAX_HUMAN_PLAYERS} human players can be in the town at once.</li>
                     <li>If the town is full, you can join the waiting pool to be notified when a slot opens up.</li>
                     <li>Idle players may be removed after a period of inactivity to make room for others.</li>
+                    <li>All payments are processed on Solana mainnet via the x402 protocol using USDC.</li>
                   </ul>
                 </section>
               )}
@@ -441,7 +508,7 @@ function Home() {
                   <h2 className="text-3xl font-semibold">Coming Soon</h2>
                   <ul className="list-disc pl-6 mt-2 space-y-3 text-slate-200">
                     <li>
-                      <b>Town Twitter:</b> President Bukele will take over the official AI Salvador handle once every hour to broadcast town happenings and react to community replies in real-time.
+                      <b>Town Twitter:</b> President Bukele will take over the official X402 AI Town handle once every hour to broadcast town happenings and react to community replies in real-time.
                     </li>
                     <li>
                       <b>Betting:</b> Brace for crypto winter. Step into Bukele's shoes and place wagers through Monaco Protocol markets to hedge or double-down on the town's future.
@@ -473,7 +540,7 @@ function Home() {
                   className="h-12 w-12 sm:h-24 sm:w-24 md:h-28 md:w-28 animate-wiggle" 
                   style={{ minWidth: '48px' }}
                 />
-                <span className="swing-kebab">AI Salvador</span>
+                <span className="swing-kebab">X402 AI Town</span>
               </h1>
               <div className="mx-auto mt-4 sm:mt-6 text-center text-sm sm:text-lg md:text-xl text-white/95 leading-snug shadow-solid scale-hover whitespace-normal px-2">
                 A virtual town where AI characters live, chat and socialize.
@@ -495,6 +562,8 @@ function Home() {
             isChaseActive={isChaseActive}
             isMeetingActive={isMeetingActive}
             isPartyActive={isPartyActive}
+            openPaymentModal={setPaymentDetails} // Pass the setter
+            setIsPaymentModalOpen={setIsPaymentModalOpen} // Pass the modal state setter
           />
         </div>
       </div>
@@ -511,7 +580,7 @@ function Home() {
           <Button imgUrl={shareImg} onClick={handleShare} title="Share">
             Share
           </Button>
-          <InteractButton />
+          {/* Removed InteractButton as Join is now part of the payment flow */}
           <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>
@@ -577,9 +646,8 @@ function Home() {
           fontSize: '0.9rem',
           fontFamily: 'var(--font-sans)',
         }}
-        progressStyle={{
-          background: 'rgba(99, 102, 241, 0.8)',
-        }}
+        // Fix: Removed `progressStyle` as it's not a direct prop of `ToastContainerProps`.
+        // Progress bar styling can be done via `progressClassName` or global CSS.
       />
       {userPlayer && <HustleModal playerId={userPlayer.id} />}
     </main>

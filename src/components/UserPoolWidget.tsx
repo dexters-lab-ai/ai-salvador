@@ -129,7 +129,7 @@ export default function UserPoolWidget() {
       // TTS announcement
       try {
         const synth = window.speechSynthesis;
-        const utter = new SpeechSynthesisUtterance('A slot just opened. Tap take slot to join.');
+        const utter = new SpeechSynthesisUtterance('A slot just opened. Make payment to join.');
         utter.rate = 1.05;
         utter.pitch = 1.0;
         synth.speak(utter);
@@ -184,8 +184,8 @@ export default function UserPoolWidget() {
             <div className="text-xs uppercase tracking-widest text-white/70">Player Pools</div>
             {!isAuthenticated && showLoginMode ? (
               <div className="mt-1 text-sm">
-                <div className="font-display text-lg">Join to get notified</div>
-                <div className="opacity-80 text-xs">Login then tap Wait to be notified when slots open.</div>
+                <div className="font-display text-lg">Login to X402 AI Town</div>
+                <div className="opacity-80 text-xs">Then make payment to join.</div>
               </div>
             ) : (
               <>
@@ -217,14 +217,14 @@ export default function UserPoolWidget() {
                     </div>
                   ) : myPool?.inPool ? (
                     <div className="flex items-center gap-3">
-                      <button className="text-sm underline opacity-90 hover:opacity-100" onClick={leavePool}>Leave</button>
+                      <button className="text-sm underline opacity-90 hover:opacity-100" onClick={leavePool}>Leave Pool</button>
                       <button className="text-sm underline opacity-90 hover:opacity-100" onClick={() => setModalOpen(true)}>
                         <span className="max-w-[140px] truncate inline-block align-bottom">{userPlayer?.name ?? 'Details'}</span>
                       </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
-                      <button className="text-sm underline opacity-90 hover:opacity-100" onClick={joinPool}>Wait</button>
+                      <button className="text-sm underline opacity-90 hover:opacity-100" onClick={joinPool}>Join Pool</button>
                       <button className="text-sm underline opacity-90 hover:opacity-100" onClick={() => setModalOpen(true)}>
                         <span className="max-w-[140px] truncate inline-block align-bottom">{userPlayer?.name ?? 'Details'}</span>
                       </button>
@@ -270,8 +270,8 @@ export default function UserPoolWidget() {
             <div className="text-xs uppercase tracking-widest text-white/70">Player Pools</div>
             {!isAuthenticated && showLoginMode ? (
               <div className="text-sm">
-                <div className="font-display text-lg">Join to get notified</div>
-                <div className="opacity-80 text-xs">Login then tap Wait to be notified when slots open.</div>
+                <div className="font-display text-lg">Login to X402 AI Town</div>
+                <div className="opacity-80 text-xs">Then make payment to join.</div>
               </div>
             ) : (
               <div className="flex flex-col gap-2">
@@ -302,14 +302,14 @@ export default function UserPoolWidget() {
                 </div>
               ) : myPool?.inPool ? (
                 <div className="flex flex-col items-end gap-1">
-                  <button className="text-xs underline opacity-90 hover:opacity-100" onClick={leavePool}>Leave</button>
+                  <button className="text-xs underline opacity-90 hover:opacity-100" onClick={leavePool}>Leave Pool</button>
                   <button className="text-xs underline opacity-90 hover:opacity-100" onClick={() => setModalOpen(true)}>
                     <span className="max-w-[160px] truncate inline-block align-bottom">{userPlayer?.name ?? 'Details'}</span>
                   </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-end gap-1">
-                  <button className="text-xs underline opacity-90 hover:opacity-100" onClick={joinPool}>Wait</button>
+                  <button className="text-xs underline opacity-90 hover:opacity-100" onClick={joinPool}>Join Pool</button>
                   <button className="text-xs underline opacity-90 hover:opacity-100" onClick={() => setModalOpen(true)}>
                     <span className="max-w-[160px] truncate inline-block align-bottom">{userPlayer?.name ?? 'Details'}</span>
                   </button>
@@ -358,7 +358,7 @@ export default function UserPoolWidget() {
             <div className="mt-4">
               {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
               {/* @ts-ignore */}
-              <div className="button text-white text-lg" style={{ cursor: 'pointer' }}>
+              <div className="button text-white text-sm" style={{ cursor: 'pointer' }}>
                 <span>Login</span>
               </div>
             </div>

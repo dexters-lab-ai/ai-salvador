@@ -16,10 +16,16 @@ crons.interval(
 crons.interval(
   'stop inactive worlds',
   { seconds: IDLE_WORLD_TIMEOUT / 1000 },
+  // Fix: Call the newly added internal mutation
   internal.world.stopInactiveWorlds,
 );
 
-crons.interval('restart dead worlds', { seconds: 60 }, internal.world.restartDeadWorlds);
+crons.interval(
+  'restart dead worlds',
+  { seconds: 60 },
+  // Fix: Call the newly added internal mutation
+  internal.world.restartDeadWorlds
+);
 
 crons.daily('vacuum old entries', { hourUTC: 4, minuteUTC: 20 }, internal.crons.vacuumOldEntries);
 

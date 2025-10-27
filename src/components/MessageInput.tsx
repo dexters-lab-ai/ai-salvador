@@ -19,7 +19,8 @@ export function MessageInput({
   humanPlayer: Player;
   conversation: Conversation;
 }) {
-  const descriptions = useQuery(api.world.gameDescriptions, { worldId });
+  // Fix: Pass an empty object for optional arguments when no other args are present
+  const descriptions = useQuery(api.world.gameDescriptions as any, worldId ? { worldId } : 'skip');
   const humanName = descriptions?.playerDescriptions.find((p) => p.playerId === humanPlayer.id)
     ?.name;
   const inputRef = useRef<HTMLParagraphElement>(null);
@@ -95,10 +96,18 @@ export function MessageInput({
   }, []);
 
   const handleMicClick = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
+    if (isSpeechSupported) {
+      if (isListening) {
+        recognitionRef.current?.stop();
+      } else {
+        // Clear previous text before starting
+        if (inputRef.current) {
+          inputRef.current.innerText = '';
+        }
+        recognitionRef.current?.start();
+      }
     } else {
-      recognitionRef.current?.start();
+      toast.info("Speech recognition not supported in your browser or an error occurred during initialization.");
     }
   };
 

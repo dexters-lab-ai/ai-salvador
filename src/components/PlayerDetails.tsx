@@ -1,4 +1,3 @@
-
 import { useQuery } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Id } from '../../convex/_generated/dataModel';
@@ -13,6 +12,8 @@ import { ServerGame } from '../hooks/serverGame';
 import { ChallengeModal } from './ChallengeModal';
 import { useState } from 'react';
 import { characters } from '../../data/characters';
+import x402Button from '../../public/assets/x402-button.svg'; // Import x402 button asset
+import { toast } from 'react-toastify';
 
 export default function PlayerDetails({
   worldId,
@@ -22,6 +23,8 @@ export default function PlayerDetails({
   setSelectedElement,
   scrollViewRef,
   isMeetingActive,
+  openPaymentModal, // New prop
+  setIsPaymentModalOpen, // New prop
 }: {
   worldId: Id<'worlds'>;
   engineId: Id<'engines'>;
@@ -30,6 +33,8 @@ export default function PlayerDetails({
   setSelectedElement: SelectElement;
   scrollViewRef: React.RefObject<HTMLDivElement>;
   isMeetingActive: boolean;
+  openPaymentModal: React.Dispatch<any>;
+  setIsPaymentModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   const humanPlayerDoc = useQuery(api.players.user, { worldId });
   const humanPlayer = humanPlayerDoc
@@ -58,6 +63,8 @@ export default function PlayerDetails({
   );
 
   const playerDescription = playerId && game.playerDescriptions.get(playerId);
+  const playerWallet = useQuery(api.x402.getWalletAddress, playerId ? { playerId } : 'skip');
+  const rewardHistory = useQuery(api.economy.getRewardHistory, playerWallet ? { wallet: playerWallet } : 'skip');
 
   const startConversation = useSendInput(engineId, 'startConversation');
   const acceptInvite = useSendInput(engineId, 'acceptInvite');
@@ -116,13 +123,54 @@ export default function PlayerDetails({
     playerStatus?.kind === 'participating' &&
     humanStatus?.kind === 'participating';
 
-  const onStartConversation = async () => {
+  const handleTalkPaymentSuccess = async (txHash: string) => {
+    if (!humanPlayer || !playerId) return;
+    try {
+      await api.x402.handleTalkPayment({
+        payerWallet: 'user-solana-wallet-placeholder', // This should come from client-side or facilitator
+        agentId: String(playerId),
+        message: 'Hello Agent!', // Default message, actual message will be typed later
+        amount: 0.1, // 0.1 USDC to talk
+        txHash: txHash,
+      });
+      // After payment success, the conversation will be initiated by Convex (via the input)
+      // No direct startConversation call here.
+      toast.success('💬 Conversation payment successful!', {
+        position: 'bottom-right',
+        autoClose: 3000,
+      });
+    } catch (error: any) {
+      toast.error(`Error processing talk payment: ${error.message}`, {
+        position: 'bottom-right',
+        autoClose: 5000,
+      });
+    } finally {
+      setIsPaymentModalOpen(false);
+      openPaymentModal(null);
+    }
+  };
+
+  const onStartConversation = () => {
     if (!humanPlayer || !playerId) {
       return;
     }
-    console.log(`Starting conversation`);
-    await toastOnError(startConversation({ playerId: humanPlayer.id, invitee: playerId }));
+    openPaymentModal({
+      amount: 0.1, // 0.1 USDC to talk
+      description: `Payment to talk to ${playerDescription?.name}`,
+      route: `/agent/${playerDescription?.name}/talk`, // Route for talking to agent
+      onSuccess: handleTalkPaymentSuccess,
+      onFailure: (error: string) => {
+        toast.error(`Payment failed: ${error}`, {
+          position: 'bottom-right',
+          autoClose: 5000,
+        });
+        setIsPaymentModalOpen(false);
+        openPaymentModal(null);
+      },
+    });
+    setIsPaymentModalOpen(true);
   };
+
   const onAcceptInvite = async () => {
     if (!humanPlayer || !humanConversation || !playerId) {
       return;
@@ -201,6 +249,7 @@ export default function PlayerDetails({
           onClick={onStartConversation}
         >
           <div className="h-full bg-clay-700 text-center">
+            <img src={x402Button} alt="X402 Pay" className="w-6 h-6 mr-2 inline-block" /> {/* x402 button */}
             <span>Start conversation</span>
           </div>
         </a>
@@ -295,6 +344,25 @@ export default function PlayerDetails({
           )}
         </p>
       </div>
+      {/* Reward History Section */}
+      {playerWallet && rewardHistory && rewardHistory.length > 0 && (
+        <div className="box flex-grow mt-6">
+          <h2 className="bg-brown-700 p-2 font-display text-xl sm:text-2xl tracking-wider shadow-solid text-center">
+            Reward History
+          </h2>
+          <div className="bg-brown-600 p-2 text-sm max-h-48 overflow-y-auto custom-scroll">
+            {rewardHistory.map((reward) => (
+              <div key={reward._id} className="mb-2 p-1 border-b border-brown-700 last:border-b-0">
+                <p>
+                  <span className="font-bold text-yellow-300">{reward.amount.toFixed(4)} USDC</span> received
+                  {reward.txHash && <a href={`https://solscan.io/tx/${reward.txHash}`} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline ml-1">(Tx)</a>}
+                </p>
+                <p className="text-xs text-gray-400">{new Date(reward.timestamp).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {!isMe && playerConversation && playerStatus?.kind === 'participating' && (
         <Messages
           worldId={worldId}

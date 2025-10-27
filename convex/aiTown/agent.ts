@@ -376,14 +376,14 @@ export class Agent {
         if (otherPlayer.human && Math.random() < 0.25) {
           game.pendingOperations.push({
             name: 'hustle',
-            args: { agentId: player.id, touristId: otherPlayer.id },
+            args: { agentId: player.id as string, touristId: otherPlayer.id as string },
           });
         }
         // Passive earning from conversation.
         if (otherPlayer.human) {
           game.pendingOperations.push({
             name: 'earnFromConversation',
-            args: { agentId: player.id, touristId: otherPlayer.id },
+            args: { agentId: player.id as string, touristId: otherPlayer.id as string },
           });
         }
         // ICE hands over all collected BTC to President Bukele when they meet (once per conversation).
@@ -394,7 +394,7 @@ export class Agent {
           if (pdSelf?.name === 'ICE' && pdOther?.name === 'President Bukele' && oncePerConversation) {
             game.pendingOperations.push({
               name: 'transferAllBalance',
-              args: { fromId: player.id, toId: otherPlayer.id },
+              args: { fromId: player.id as string, toId: otherPlayer.id as string },
             });
           }
         }
@@ -406,7 +406,7 @@ export class Agent {
           if (pd?.name === 'MS-13' && oncePerConversation) {
             game.pendingOperations.push({
               name: 'robProtectionFee',
-              args: { robberId: player.id, victimId: otherPlayer.id },
+              args: { robberId: player.id as string, victimId: otherPlayer.id as string },
             });
           }
         }
@@ -451,10 +451,11 @@ export class Agent {
       );
     }
     const operationId = game.allocId('operations');
-    console.log(`Agent ${this.id} starting operation ${name} (${operationId})`);
-    game.scheduleOperation(name, { operationId, ...args } as any);
+    console.log(`Agent ${this.id} starting operation ${String(name)} (${operationId})`);
+    // Fix: Explicitly cast `name` to `keyof AgentOperations` and `args` to `any`
+    game.scheduleOperation(name as keyof AgentOperations, { operationId, ...args } as any);
     this.inProgressOperation = {
-      name,
+      name: String(name), // Fix: Ensure name is a string
       operationId,
       started: now,
     };

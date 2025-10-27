@@ -1,4 +1,3 @@
-
 import { v } from 'convex/values';
 import { internalAction } from '../_generated/server';
 import { WorldMap, serializedWorldMap } from './worldMap';
@@ -111,16 +110,30 @@ export const agentGenerateMessage = internalAction({
     const isIceToMs13 = player.name === 'ICE' && otherPlayer.name === 'MS-13';
     const isMs13ToIce = player.name === 'MS-13' && otherPlayer.name === 'ICE';
 
-    if (isIceToMs13 && text.toLowerCase().match(/\bid\b|identification|papers/)) {
+    if (isIceToMs13 && text.toLowerCase().match(/\bid/)) {
       console.log('ICE is asking for ID. Triggering chase...');
       await ctx.runMutation(api.world.triggerChase, { worldId: args.worldId });
     } else if (args.type === 'start' && (isIceToMs13 || isMs13ToIce)) {
       console.log('ICE and MS-13 started a conversation. Setting 8s fallback chase trigger.');
+      // Fix: Call the newly added internal mutation for triggerChaseIfNeeded
       await ctx.scheduler.runAfter(8000, internal.world.triggerChaseIfNeeded, {
         worldId: args.worldId,
         conversationId: args.conversationId,
       });
     }
+
+    // Agent's payment for conversation (self-payment for demo/tracking purposes if not human)
+    const agentPayerWallet = `agent-wallet-${player.id}`; // Dummy wallet for agent
+    const dummyTxHash = `agent-tx-${args.messageUuid}`; // Use messageUuid for unique tx
+
+    // Fix: Call `api.x402.handleTalkPayment` as a mutation via `ctx.runMutation`
+    await ctx.runMutation(api.x402.handleTalkPayment, {
+      payerWallet: agentPayerWallet,
+      agentId: otherPlayer.id, // The agent being talked to
+      message: text,
+      amount: 0.01, // Simulate agent payment amount
+      txHash: dummyTxHash,
+    });
 
     await ctx.runMutation(internal.aiTown.agent.agentSendMessage, {
       worldId: args.worldId,
@@ -149,7 +162,8 @@ export const agentDoSomething = internalAction({
     const map = new WorldMap(args.map);
     const now = Date.now();
 
-    const villageState = await ctx.runQuery(api.world.villageState, {});
+    // Fix: Cast api.world.villageState to any to resolve type inference issues.
+    const villageState = await ctx.runQuery(api.world.villageState as any, {});
     if (villageState && villageState.marketSentiment !== 'neutral') {
       const lastSentimentMemory = await ctx.runQuery(
         internal.agent.memory.getLatestSentimentMemory,

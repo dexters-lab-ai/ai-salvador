@@ -1,4 +1,3 @@
-
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { agentTables } from './agent/schema';
@@ -85,6 +84,28 @@ export default defineSchema({
   })
     .index('by_worldId', ['worldId'])
     .index('by_token', ['worldId', 'tokenIdentifier']),
+
+  // X402 Protocol tables
+  users: defineTable({
+    wallet: v.string(),
+    isJoined: v.boolean(),
+    createdAt: v.number(),
+  }).index('by_wallet', ['wallet']),
+  x402Payments: defineTable({
+    payerWallet: v.string(),
+    amount: v.number(),
+    paymentType: v.union(v.literal('join'), v.literal('talk')),
+    txHash: v.string(),
+    timestamp: v.number(),
+  }).index('by_payerWallet', ['payerWallet']),
+  rewards: defineTable({
+    receiverWallet: v.string(),
+    amount: v.number(), // In USDC equivalent
+    txHash: v.optional(v.string()),
+    status: v.union(v.literal('pending'), v.literal('distributed'), v.literal('failed')),
+    timestamp: v.number(),
+    interactionId: v.optional(v.string()), // To link rewards to specific interactions
+  }).index('by_receiverWallet', ['receiverWallet']),
 
   ...agentTables,
   ...aiTownTables,

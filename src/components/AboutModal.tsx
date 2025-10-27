@@ -1,4 +1,3 @@
-
 import ReactModal from 'react-modal';
 import { Descriptions, characters } from '../../data/characters';
 import closeImg from '../../assets/close.svg';
@@ -54,7 +53,7 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       isOpen={isOpen}
       onRequestClose={onClose}
       style={modalStyles}
-      contentLabel="About AI Salvador"
+      contentLabel="About X402 AI Town"
       ariaHideApp={false}
     >
       <div className="w-full h-full relative overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-10" style={{
@@ -82,7 +81,7 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
         <div className="relative z-10 text-center text-white w-full">
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold font-display game-title text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-yellow-300">
-            AI Salvador
+            X402 AI Town
           </h1>
           <h2 className="mt-4 sm:mt-6 md:mt-8 text-xl sm:text-2xl md:text-3xl font-display text-white tracking-widest font-bold">
             Starring
@@ -136,7 +135,7 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
           </div>
 
           <p className="mt-12 text-lg sm:text-xl md:text-2xl text-white/90 italic max-w-3xl mx-auto">
-            "A virtual town where AI characters live, chat, socialize, hustle, HODL and party."
+            "X402 AI Town is a virtual town where AI characters live, chat, socialize, hustle, HODL and party, powered by Solana's x402 protocol."
           </p>
         </div>
 
@@ -148,12 +147,12 @@ export function AboutModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 <span className="text-amber-300 font-bold text-lg">CA: </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-amber-100 font-mono text-sm sm:text-base break-words leading-relaxed">
-                    
+                    EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
                   </span>
                 </div>
                 <button 
                   onClick={(e) => {
-                    navigator.clipboard.writeText('');
+                    navigator.clipboard.writeText('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
                     const button = e.currentTarget;
                     const tooltip = button.nextElementSibling as HTMLElement;
                     tooltip.classList.remove('opacity-0', 'invisible');

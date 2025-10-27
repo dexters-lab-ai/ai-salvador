@@ -44,7 +44,8 @@ export const FloatingText = ({
   const textRefCallback = useCallback((node: PIXI.Text | null) => {
     if (node) {
       // Force an update to get fresh metrics
-      node.updateText(true);
+      // Fix: Removed direct `node.updateText(true)` call. In `@pixi/react`,
+      // text properties updates should re-render the Text component and update metrics automatically.
       setTextMetrics({ width: node.width, height: node.height });
     }
   }, []);
@@ -78,7 +79,7 @@ export const FloatingText = ({
           y={0}
           text={text}
           anchor={{ x: 0.5, y: 0.5 }}
-          style={new PIXI.TextStyle({ fontSize: 14, fill: color, fontWeight: 'bold' })}
+          style={new PIXI.TextStyle({ fontSize: 14, fill: color, fontWeight: 'bold', fontFamily: 'Arial' })}
         />
       </Container>
     );
@@ -98,7 +99,8 @@ export const FloatingText = ({
           fontWeight: 'bold',
           stroke: '#000000',
           strokeThickness: 1, // Reduced thickness
-        })
+          fontFamily: 'Arial', // Ensure font family is set
+        }) as any // Fix: Cast to any to resolve strokeThickness type error
       }
       alpha={alpha}
     />

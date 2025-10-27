@@ -8,11 +8,6 @@
  * @module
  */
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
 import type * as agent_conversation from "../agent/conversation.js";
 import type * as agent_embeddingsCache from "../agent/embeddingsCache.js";
 import type * as agent_memory from "../agent/memory.js";
@@ -64,6 +59,13 @@ import type * as util_xxhash from "../util/xxhash.js";
 import type * as village from "../village.js";
 import type * as waitingPool from "../waitingPool.js";
 import type * as world from "../world.js";
+import type * as x402 from "../x402.js";
+
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -125,12 +127,17 @@ declare const fullApi: ApiFromModules<{
   village: typeof village;
   waitingPool: typeof waitingPool;
   world: typeof world;
+  x402: typeof x402;
 }>;
+declare const fullApiWithMounts: typeof fullApi;
+
 export declare const api: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "public">
 >;
 export declare const internal: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
+
+export declare const components: {};
