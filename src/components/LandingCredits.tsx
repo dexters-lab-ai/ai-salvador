@@ -267,12 +267,6 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
     // Initial fade in - smoother and faster
     fade(0.7, 1500);
     
-    // Clear any existing fade out timers to prevent interference
-    if (fadeOutAtRef.current) {
-      clearTimeout(fadeOutAtRef.current);
-      fadeOutAtRef.current = null;
-    }
-    
     // Cleanup function
     const cleanup = () => {
       if (!state.isMounted) return;
@@ -298,15 +292,27 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
       // Clean up audio
       if (audioRef.current) {
         try {
+          // Stop any ongoing fade animation
+          if (fadeTimer.current) {
+            cancelAnimationFrame(fadeTimer.current);
+            fadeTimer.current = null;
+          }
+          
+          // Pause and reset the audio
           const audio = audioRef.current;
           audio.pause();
           audio.currentTime = 0;
+          audio.volume = 0;
+          
+          // Remove event listeners
           if (handleCanPlayRef.current) {
             audio.removeEventListener('canplaythrough', handleCanPlayRef.current);
           }
           if (handleAudioErrorRef.current) {
             audio.removeEventListener('error', () => handleAudioErrorRef.current?.(new Error('Audio error')));
           }
+          
+          // Clear the ref
           audioRef.current = null;
         } catch (e) {
           console.error('Error cleaning up audio:', e);
@@ -319,6 +325,15 @@ export default function LandingCredits({ durationMs = CHARACTER_DISPLAY_MS * 5, 
         fadeTimer.current = null;
       }
     };
+    
+    // Clear any existing fade out timers to prevent interference
+    if (fadeOutAtRef.current) {
+      clearTimeout(fadeOutAtRef.current);
+      fadeOutAtRef.current = null;
+    }
+    
+    // Return cleanup function for component unmount
+    return cleanup;
   }, [cast.length, onDone]); // Removed durationMs from dependencies to prevent re-runs
 
   const current = cast[index];
