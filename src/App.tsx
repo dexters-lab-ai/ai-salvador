@@ -15,7 +15,7 @@ import Button from './components/buttons/Button.tsx';
 import Treasury from './components/Treasury.tsx';
 import UserPoolWidget from './components/UserPoolWidget.tsx';
 import { HustleModal } from './components/HustleModal.tsx';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation, useQuery, useConvex } from 'convex/react';
 import type { Id } from '../convex/_generated/dataModel';
 import { api } from '../convex/_generated/api';
 import { MAX_HUMAN_PLAYERS } from './shared/constants.ts';
@@ -26,6 +26,7 @@ import { AddNewsModal } from './components/AddNewsModal.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { PaymentModal } from './components/PaymentModal.tsx'; // Import new PaymentModal
 import x402Button from '../public/assets/x402-button.svg'; // Import x402 button asset
+import InteractButton from './components/buttons/InteractButton.tsx';
 
 type HelpTab = 'intro' | 'nav' | 'tourist' | 'interact' | 'economy' | 'events' | 'tips' | 'limits' | 'comingSoon';
 
@@ -103,6 +104,8 @@ function Home() {
   const triggerParty = useMutation(api.world.triggerParty);
   // Fix: Call newly added stopParty mutation
   const stopParty = useMutation(api.world.stopParty);
+  // Fix: define joinWorld mutation to fix ctx.runMutation error
+  const joinWorld = useMutation(api.world.joinWorld);
 
   // Payment modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -117,13 +120,9 @@ function Home() {
   const handleJoinPaymentSuccess = async (txHash: string) => {
     if (!worldId || !paymentDetails) return;
     try {
-      // Fix: Call `api.x402.handleJoinPayment` directly
-      await api.x402.handleJoinPayment({
-        payerWallet: 'user-solana-wallet-placeholder', // This should come from client-side or facilitator
-        amount: paymentDetails.amount,
-        txHash: txHash,
-      });
-      setGameStarted(true);
+      // This is now triggered by the InteractButton logic, which should have logged in the user.
+      // Fix: Cannot find name 'ctx'.
+      await joinWorld({ worldId });
       toast.success('🎉 Welcome to X402 AI Town!', {
         position: 'bottom-right',
         autoClose: 3000,
@@ -152,7 +151,7 @@ function Home() {
     if (!worldId) return;
     setPaymentDetails({
       amount: 0.1, // 0.1 USDC to join
-      description: 'Payment to join X402 AI Town',
+      description: 'Payment to join X402 AI Town as a player.',
       route: '/join',
       onSuccess: handleJoinPaymentSuccess,
       onFailure: handlePaymentFailure,
@@ -167,7 +166,7 @@ function Home() {
       await triggerChase({ worldId: worldStatus.worldId });
       // Fix: Changed icon from string to React Node
       toast.success(<span>🚨 Chase initiated!</span>, {
-        icon: '🏃',
+        icon: <span>'🏃'</span>,
         position: 'bottom-right',
         autoClose: 3000,
       });
@@ -185,7 +184,7 @@ function Home() {
       await gatherAll({ worldId: worldStatus.worldId });
       // Fix: Changed icon from string to React Node
       toast.success(<span>📢 Town meeting called!</span>, {
-        icon: '🗣️',
+        icon: <span>'🗣️'</span>,
         position: 'bottom-right',
         autoClose: 3000,
       });
@@ -217,7 +216,7 @@ function Home() {
         await triggerParty({ worldId: worldStatus.worldId });
         // Fix: Changed icon from string to React Node
         toast.success(<span>🎉 Party started!</span>, {
-          icon: '🎊',
+          icon: <span>'🎊'</span>,
           position: 'bottom-right',
           autoClose: 3000,
         });
@@ -362,10 +361,10 @@ function Home() {
           ) : (
             <>
               <p className="mt-5 sm:mt-6 mb-12 sm:mb-14 text-lg sm:text-xl md:text-2xl max-w-md md:max-w-2xl lg:max-w-3xl mx-auto leading-snug text-white/95 shadow-solid scale-hover">
-                Step into a bustling virtual town where the economy runs on Solana. To get started, make a small 0.1 USDC payment via the x402 protocol. Then, interact with AI agents, influence the town's story, and see how they adapt to a crypto world. Ready to dive in?
+                Step into a bustling virtual town where AI characters live, chat and socialize. You can look around as a spectator, or click "Interact" to join the town as a player and influence what happens.
               </p>
-              <Button onClick={openJoinPaymentModal} className="mt-8 sm:mt-10 text-2xl sm:text-3xl px-6 sm:px-10 btn-pulse scale-hover">
-                Join X402 AI Town
+              <Button onClick={() => setGameStarted(true)} className="mt-8 sm:mt-10 text-2xl sm:text-3xl px-6 sm:px-10 btn-pulse scale-hover">
+                Enter AI Town
               </Button>
             </>
           )}
@@ -580,7 +579,7 @@ function Home() {
           <Button imgUrl={shareImg} onClick={handleShare} title="Share">
             Share
           </Button>
-          {/* Removed InteractButton as Join is now part of the payment flow */}
+          <InteractButton onJoin={openJoinPaymentModal} />
           <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>

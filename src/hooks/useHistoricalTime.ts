@@ -4,21 +4,32 @@ import { useEffect, useRef, useState } from 'react';
 
 export function useHistoricalTime(engineStatus?: Doc<'engines'>) {
   const timeManager = useRef(new HistoricalTimeManager());
-  // Fix: Initialize useRef with a value to avoid type errors.
   const rafRef = useRef<number>(0);
-  const [historicalTime, setHistoricalTime] = useState<number | undefined>(undefined);
-  if (engineStatus) {
-    timeManager.current.receive(engineStatus);
-  }
-  const updateTime = (performanceNow: number) => {
-    // We don't need sub-millisecond precision for interpolation, so just use `Date.now()`.
-    const now = Date.now();
-    setHistoricalTime(timeManager.current.historicalServerTime(now));
-    rafRef.current = requestAnimationFrame(updateTime);
-  };
+  const [historicalTime, setHistoricalTime] = useState<number>(Date.now()); // Initialize with current time
+
   useEffect(() => {
+    if (engineStatus) {
+      timeManager.current.receive(engineStatus);
+    }
+  }, [engineStatus]);
+
+  useEffect(() => {
+    const updateTime = (performanceNow: number) => {
+      const now = Date.now();
+      // Only update if we have a valid time from the manager
+      const serverTime = timeManager.current.historicalServerTime(now);
+      if (serverTime !== undefined) {
+        setHistoricalTime(serverTime);
+      }
+      rafRef.current = requestAnimationFrame(updateTime);
+    };
+
     rafRef.current = requestAnimationFrame(updateTime);
-    return () => cancelAnimationFrame(rafRef.current!);
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, []);
   return { historicalTime, timeManager: timeManager.current };
 }

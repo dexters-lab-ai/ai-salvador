@@ -5,33 +5,32 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'react-toastify';
 
+// Check if audio is allowed to play
+const checkAudioPermission = async (): Promise<boolean> => {
+  try {
+    // Try to play a silent audio element
+    const audio = new Audio();
+    audio.muted = true; // Start muted to avoid any sound
+    await audio.play();
+    audio.pause();
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
 // Permissions overlay component
 function PermissionsOverlay({ onRequestPermission, isAudioBlocked }: { onRequestPermission: () => void, isAudioBlocked: boolean }) {
   const [showOverlay, setShowOverlay] = useState(false);
-  const [permissionState, setPermissionState] = useState<PermissionState>('prompt');
   const [showDismiss, setShowDismiss] = useState(false);
 
   useEffect(() => {
     // Show dismiss button after a delay
     const dismissTimer = setTimeout(() => setShowDismiss(true), 3000);
     
-    // Check if the browser supports the permissions API
-    if ('permissions' in navigator) {
-      // @ts-ignore - autoplay permission is not in the TypeScript lib yet
-      const permissionName = 'autoplay' as PermissionName;
-      navigator.permissions.query({ name: permissionName })
-        .then(permissionStatus => {
-          setPermissionState(permissionStatus.state);
-          permissionStatus.onchange = () => {
-            setPermissionState(permissionStatus.state);
-          };
-        })
-        .catch(console.error);
-    }
-
     // Show overlay after a short delay if audio is blocked
     const showTimer = setTimeout(() => {
-      if (isAudioBlocked || permissionState === 'denied') {
+      if (isAudioBlocked) {
         setShowOverlay(true);
       }
     }, 1000);
@@ -40,9 +39,9 @@ function PermissionsOverlay({ onRequestPermission, isAudioBlocked }: { onRequest
       clearTimeout(showTimer);
       clearTimeout(dismissTimer);
     };
-  }, [isAudioBlocked, permissionState]);
+  }, [isAudioBlocked]);
 
-  if (!showOverlay || (permissionState === 'granted' && !isAudioBlocked)) return null;
+  if (!showOverlay) return null;
 
   return (
     <div className="fixed bottom-4 right-4 bg-clay-800 bg-opacity-95 text-white p-4 rounded-lg shadow-lg z-[100] max-w-xs border border-clay-600">
@@ -84,6 +83,7 @@ const createAudioElement = (src?: string) => {
   const audio = new Audio(src);
   audio.preload = 'auto';
   audio.volume = 0.5;
+  audio.muted = true; // This enables autoplay in most browsers
   return audio;
 };
 
@@ -93,10 +93,12 @@ export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseA
     () => localStorage.getItem('musicOn') === '1',
   );
   const [isAudioBlocked, setIsAudioBlocked] = useState(false);
+  const [showEnableButton, setShowEnableButton] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const partyAudioRef = useRef<HTMLAudioElement | null>(null);
   const [currentSong, setCurrentSong] = useState(0);
   const hasInteracted = useRef(false);
+  const userInitiatedPlay = useRef(false);
 
   // Use assets that exist in public/assets
   const partyPlaylist = [
@@ -248,6 +250,49 @@ export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseA
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [handleKeyPress]);
 
+  // Handle audio permission and initialization
+  useEffect(() => {
+    // Check if audio is blocked on initial load
+    const checkAudio = async () => {
+      const canPlay = await checkAudioPermission();
+      setIsAudioBlocked(!canPlay);
+      setShowEnableButton(!canPlay);
+    };
+    
+    checkAudio();
+    
+    // Set up global click handler to enable audio on first interaction
+    const handleFirstInteraction = async () => {
+      if (!userInitiatedPlay.current) {
+        userInitiatedPlay.current = true;
+        const canPlay = await checkAudioPermission();
+        setIsAudioBlocked(!canPlay);
+        
+        if (canPlay && userWantsMusic) {
+          // User has interacted, we can try to play audio
+          if (audioRef.current) {
+            try {
+              audioRef.current.muted = false;
+              await audioRef.current.play();
+            } catch (e) {
+              console.warn('Failed to play audio after interaction:', e);
+            }
+          }
+        }
+      }
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('keydown', handleFirstInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [userWantsMusic]);
+
   const toggleMusic = async () => {
     if (!hasInteracted.current) {
       hasInteracted.current = true;
@@ -282,26 +327,27 @@ export default function MusicButton({ isChaseActive, isPartyActive }: { isChaseA
 
   return (
     <>
-      <button
+      {showEnableButton && (
+        <Button
+          onClick={handleRequestPermission}
+          title="Enable audio"
+          className="text-xs sm:text-sm bg-yellow-600 hover:bg-yellow-700"
+        >
+          <span>🔊 Enable Audio</span>
+        </Button>
+      )}
+      <Button
         onClick={toggleMusic}
-        className="button text-white shadow-solid pointer-events-auto text-xs"
-        title={userWantsMusic ? 'Turn music off' : 'Turn music on'}
+        title={userWantsMusic ? 'Turn off music' : 'Turn on music'}
+        className={`text-xs sm:text-sm ${showEnableButton ? 'opacity-50' : ''}`}
+        disabled={showEnableButton}
       >
-        <div className="inline-block bg-clay-700 px-1.5 py-0.5">
-          <div className="flex items-center gap-1">
-            <img
-              className={`w-3 h-3 ${isPartyActive ? 'animate-pulse' : ''}`}
-              src={volumeImg}
-              alt="Volume"
-            />
-            <span>{isPartyActive ? 'Party!' : 'Music'}</span>
-          </div>
-        </div>
-      </button>
-      
+        <img src={volumeImg} alt="" className="w-4 h-4" />
+        <span>{userWantsMusic ? 'Music On' : 'Music Off'}</span>
+      </Button>
       <PermissionsOverlay 
         onRequestPermission={handleRequestPermission} 
-        isAudioBlocked={isAudioBlocked} 
+        isAudioBlocked={isAudioBlocked && userWantsMusic} 
       />
     </>
   );
