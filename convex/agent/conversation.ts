@@ -265,7 +265,7 @@ async function previousMessages(
   conversationId: GameId<'conversations'>,
 ) {
   const llmMessages: LLMMessage[] = [];
-  // Ensure conversationId is cast to string as expected by listMessages argument type
+  // Fix: Ensure conversationId is cast to string as expected by listMessages argument type
   const prevMessages = await ctx.runQuery(api.messages.listMessages, { worldId, conversationId: conversationId as string });
   for (const message of prevMessages) {
     const author = message.author === player.id ? player : otherPlayer;

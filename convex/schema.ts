@@ -90,6 +90,8 @@ export default defineSchema({
     wallet: v.string(),
     isJoined: v.boolean(),
     createdAt: v.number(),
+    // Fix: Add optional tokenIdentifier to schema to resolve type error
+    tokenIdentifier: v.optional(v.string()),
   }).index('by_wallet', ['wallet']),
   x402Payments: defineTable({
     payerWallet: v.string(),
@@ -105,7 +107,9 @@ export default defineSchema({
     status: v.union(v.literal('pending'), v.literal('distributed'), v.literal('failed')),
     timestamp: v.number(),
     interactionId: v.optional(v.string()), // To link rewards to specific interactions
-  }).index('by_receiverWallet', ['receiverWallet']),
+  })
+    .index('by_receiverWallet', ['receiverWallet'])
+    .index('by_timestamp', ['timestamp']),
 
   ...agentTables,
   ...aiTownTables,

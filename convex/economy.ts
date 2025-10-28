@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { internalMutation, mutation, query } from './_generated/server';
 import { internal, api } from './_generated/api';
 import { GameId, playerId } from './aiTown/ids';
+import { Doc } from './_generated/dataModel';
 
 const HUSTLE_SUCCESS_RATE = 0.1;
 const EARNING_RATE = 0.1; // This is earnings from conversation, not necessarily reward distribution
@@ -433,5 +434,38 @@ export const getRewardHistory = query({
       .withIndex('by_receiverWallet', (q) => q.eq('receiverWallet', wallet))
       .order('desc')
       .collect();
+  },
+});
+
+export const getRewardsWithDetails = query({
+  handler: async (ctx) => {
+    const rewards = await ctx.db.query('rewards').withIndex('by_creation_time').order('desc').take(100);
+    
+    const worldStatus = await ctx.db.query('worldStatus').filter(q => q.eq(q.field('isDefault'), true)).first();
+    if (!worldStatus) return [];
+    const world = await ctx.db.get(worldStatus.worldId);
+    if (!world) return [];
+
+    const allPlayerDescriptions = await ctx.db.query('playerDescriptions').withIndex('worldId', q => q.eq('worldId', world._id)).collect();
+    const playerDescMap = new Map(allPlayerDescriptions.map(d => [d.playerId, d.name]));
+
+    const users = await ctx.db.query('users').collect();
+    const walletToUserMap = new Map(users.map(u => [u.wallet, u]));
+
+    const results = rewards.map(reward => {
+      const user = walletToUserMap.get(reward.receiverWallet);
+      let receiverName = reward.receiverWallet.slice(0, 4) + '...' + reward.receiverWallet.slice(-4);
+      if (user) {
+        const player = world.players.find(p => p.human === user.tokenIdentifier);
+        if (player) {
+          receiverName = playerDescMap.get(player.id as GameId<'players'>) ?? receiverName;
+        }
+      }
+      return {
+        ...reward,
+        receiverName: receiverName,
+      };
+    });
+    return results;
   },
 });

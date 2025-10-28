@@ -27,20 +27,25 @@ export function useServerGame(worldId: Id<'worlds'> | undefined): ServerGame | u
     }
     
     try {
-      return {
+      // Fix: Add explicit type assertion to satisfy ServerGame type.
+      const parsedGame = {
         world: new World(worldState),
         agentDescriptions: parseMap(
-          descriptions.agentDescriptions || {},
+          // Fix: Provide an empty array as a fallback to avoid passing `undefined`.
+          descriptions.agentDescriptions || [],
           AgentDescription,
           (p) => p.agentId,
         ),
         playerDescriptions: parseMap(
-          descriptions.playerDescriptions || {},
+          // Fix: Provide an empty array as a fallback.
+          descriptions.playerDescriptions || [],
           PlayerDescription,
           (p) => p.playerId,
         ),
-        worldMap: new WorldMap(descriptions.worldMap || {}),
+        // Fix: Remove `|| {}` as `descriptions.worldMap` is guaranteed to exist here.
+        worldMap: new WorldMap(descriptions.worldMap),
       };
+      return parsedGame as ServerGame;
     } catch (error) {
       console.error('Error initializing game state:', error);
       return undefined;

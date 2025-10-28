@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import { v } from 'convex/values';
 import { ActionCtx, DatabaseReader, internalAction, internalMutation, internalQuery, query } from '../_generated/server';
 import { Doc, Id } from '../_generated/dataModel';
@@ -86,7 +80,7 @@ export async function rememberConversation(
 
   const llmMessages: LLMMessage[] = [
     {
-      // Fix: role should be 'system' not 'user'
+      // Fix: role should be 'system' not 'user' to provide instructions.
       role: 'system',
       content: `You are ${player.name}, and you just finished a conversation with ${otherPlayer.name}. I would
       like you to summarize the conversation from ${player.name}'s perspective, using first-person pronouns like

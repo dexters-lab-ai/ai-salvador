@@ -18,7 +18,7 @@ import {
 } from '../constants';
 import { FunctionArgs } from 'convex/server';
 import { MutationCtx, internalMutation, internalQuery } from '../_generated/server';
-import { distance } from '../util/geometry';
+import { distance, normalize, vector } from '../util/geometry';
 import { internal } from '../_generated/api';
 import { movePlayer, blocked } from './movement';
 import { insertInput } from './insertInput';
@@ -67,10 +67,14 @@ export class Agent {
     }
     const villageState = game.villageState;
 
+    const isPartying = player.activity?.description.includes('Partying');
+    const isAtMeeting =
+      player.activity?.description.includes('Meeting') ||
+      player.activity?.description.includes('Listening');
+
     // Decentralized event handling (pull model)
     // Check for active world events and react accordingly.
     if (villageState?.isPartyActive) {
-      const isPartying = player.activity?.description.includes('Partying');
       if (isPartying && !player.pathfinding && (!this.nextPartyMoveTs || now > this.nextPartyMoveTs)) {
         const partyMin = { x: 40, y: 9 };
         const partyMax = { x: 51, y: 14 };
@@ -104,7 +108,12 @@ export class Agent {
       // If we are at the party, we should be dancing, not just standing.
       // This will be handled by the frontend animation logic.
       return; // Prioritize party over other actions
-    } else if (villageState?.meeting) {
+    } else if (isPartying) {
+      // Party is over, but agent is still partying. Stop it.
+      if (player.activity) player.activity.until = now;
+    }
+
+    if (villageState?.meeting) {
       const meeting = villageState.meeting;
       const isSpeaker = player.id === meeting.speakerId;
       const isAttending = player.activity?.description.includes('Meeting');
@@ -144,6 +153,9 @@ export class Agent {
         };
       }
       return; // Prioritize meeting over other actions
+    } else if (isAtMeeting) {
+      // Meeting is over, but agent is still in meeting. Stop it.
+      if (player.activity) player.activity.until = now;
     }
 
     // If we have a pending human invitation, preempt any in-progress operation to accept it.

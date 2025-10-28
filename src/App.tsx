@@ -6,6 +6,7 @@ import a16zImg from '../assets/a16z.png';
 import shareImg from '../assets/share.svg';
 import helpImg from '../assets/help.svg';
 import infoImg from '../assets/info.svg';
+import giftImg from '../assets/gift.svg';
 import { useState, useEffect, useRef } from 'react';
 import ReactModal from 'react-modal';
 import type { Styles } from 'react-modal';
@@ -25,6 +26,7 @@ import { AboutModal } from './components/AboutModal.tsx';
 import { AddNewsModal } from './components/AddNewsModal.tsx';
 import ErrorBoundary from './components/ErrorBoundary.tsx';
 import { PaymentModal } from './components/PaymentModal.tsx'; // Import new PaymentModal
+import { RewardsModal } from './components/RewardsModal.tsx'; // Import new RewardsModal
 import x402Button from '../public/assets/x402-button.svg'; // Import x402 button asset
 import InteractButton from './components/buttons/InteractButton.tsx';
 
@@ -88,6 +90,7 @@ function Home() {
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [addNewsModalOpen, setAddNewsModalOpen] = useState(false);
+  const [rewardsModalOpen, setRewardsModalOpen] = useState(false);
   const [screenshotUrl, setScreenshotUrl] = useState('');
   const [helpTab, setHelpTab] = useState<HelpTab>('intro');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -380,6 +383,10 @@ function Home() {
         onClose={() => setIsPaymentModalOpen(false)}
         paymentDetails={paymentDetails}
       />
+      <RewardsModal
+        isOpen={rewardsModalOpen}
+        onClose={() => setRewardsModalOpen(false)}
+      />
       <ReactModal
         isOpen={helpModalOpen}
         onRequestClose={() => setHelpModalOpen(false)}
@@ -580,6 +587,9 @@ function Home() {
             Share
           </Button>
           <InteractButton onJoin={openJoinPaymentModal} />
+           <Button imgUrl={giftImg} onClick={() => setRewardsModalOpen(true)}>
+            Rewards
+          </Button>
           <Button imgUrl={helpImg} onClick={() => setHelpModalOpen(true)}>
             Help
           </Button>
