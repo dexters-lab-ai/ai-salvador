@@ -8,8 +8,11 @@ import type { PreRenderedAsset } from 'rollup';
 export default defineConfig({
   base: './',
   define: {
-    __DEFINES__: {}
+    __VITE_IS_CLIENT__: 'true',
+    'process.env': {}
   },
+  envDir: '.',
+  envPrefix: 'VITE_',
   plugins: [react()],
   resolve: {
     alias: {
