@@ -546,7 +546,7 @@ function Home() {
                   className="h-12 w-12 sm:h-24 sm:w-24 md:h-28 md:w-28 animate-wiggle" 
                   style={{ minWidth: '48px' }}
                 />
-                <span className="swing-kebab">X402 AI Town</span>
+                <span className="swing-kebab">AI Town</span>
               </h1>
               <div className="mx-auto mt-4 sm:mt-6 text-center text-sm sm:text-lg md:text-xl text-white/95 leading-snug shadow-solid scale-hover whitespace-normal px-2">
                 A virtual town where AI characters live, chat and socialize.
